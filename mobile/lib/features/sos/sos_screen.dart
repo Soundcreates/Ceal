@@ -1,0 +1,279 @@
+/// SOS Screen — the primary emergency trigger interface.
+///
+/// Features a large panic button with a confirmation countdown, status
+/// feedback, and cancel control.
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/features/sos/sos_notifier.dart';
+
+class SosScreen extends ConsumerWidget {
+  const SosScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sosState = ref.watch(sosNotifierProvider);
+    final notifier = ref.read(sosNotifierProvider.notifier);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('AfterMath SOS'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Alert History',
+            onPressed: () => Navigator.of(context).pushNamed('/alerts'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: () => Navigator.of(context).pushNamed('/settings'),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Center(
+          child: _buildBody(context, sosState, notifier),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    SosState sosState,
+    SosNotifier notifier,
+  ) {
+    switch (sosState.phase) {
+      case SosPhase.idle:
+      case SosPhase.error:
+        return _IdleView(
+          onTrigger: () {
+            HapticFeedback.heavyImpact();
+            notifier.triggerSos();
+          },
+          errorMessage: sosState.errorMessage,
+        );
+
+      case SosPhase.countdown:
+        return _CountdownView(
+          remaining: sosState.countdownRemaining,
+          onCancel: () {
+            HapticFeedback.mediumImpact();
+            notifier.cancelSos();
+          },
+        );
+
+      case SosPhase.locating:
+        return const _StatusView(
+          icon: Icons.my_location,
+          label: 'Acquiring location…',
+          color: Colors.amber,
+        );
+
+      case SosPhase.broadcasting:
+        return const _StatusView(
+          icon: Icons.bluetooth_searching,
+          label: 'Broadcasting SOS via BLE…',
+          color: Colors.blue,
+        );
+
+      case SosPhase.awaitingAck:
+        return const _StatusView(
+          icon: Icons.cloud_upload,
+          label: 'Uploading to server…',
+          color: Colors.orange,
+        );
+
+      case SosPhase.smsFallback:
+        return const _StatusView(
+          icon: Icons.sms,
+          label: 'Sending SMS fallback…',
+          color: Colors.deepOrange,
+        );
+
+      case SosPhase.sent:
+        return _SentView(onReset: notifier.reset);
+
+      case SosPhase.cancelled:
+        return const _StatusView(
+          icon: Icons.cancel_outlined,
+          label: 'SOS Cancelled',
+          color: Colors.grey,
+        );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sub-views
+// ---------------------------------------------------------------------------
+
+class _IdleView extends StatelessWidget {
+  const _IdleView({required this.onTrigger, this.errorMessage});
+
+  final VoidCallback onTrigger;
+  final String? errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (errorMessage != null) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              errorMessage!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+        const Text(
+          'Press and hold to\nsend emergency SOS',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 16, color: Colors.white70),
+        ),
+        const SizedBox(height: 40),
+        GestureDetector(
+          onLongPress: onTrigger,
+          child: Container(
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.sosColor,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.sosColor.withValues(alpha: 0.5),
+                  blurRadius: 30,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text(
+                'SOS',
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 4,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 32),
+        Text(
+          'Long-press for 1 second to activate',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+class _CountdownView extends StatelessWidget {
+  const _CountdownView({required this.remaining, required this.onCancel});
+
+  final int remaining;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.warning_amber_rounded, size: 64, color: Colors.amber),
+        const SizedBox(height: 16),
+        Text(
+          'Sending SOS in',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '$remaining',
+          style: const TextStyle(
+            fontSize: 72,
+            fontWeight: FontWeight.bold,
+            color: Colors.amber,
+          ),
+        ),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          onPressed: onCancel,
+          icon: const Icon(Icons.close),
+          label: const Text('CANCEL'),
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.grey[700],
+            minimumSize: const Size(180, 56),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusView extends StatelessWidget {
+  const _StatusView({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 64, color: color),
+        const SizedBox(height: 16),
+        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 24),
+        CircularProgressIndicator(color: color),
+      ],
+    );
+  }
+}
+
+class _SentView extends StatelessWidget {
+  const _SentView({required this.onReset});
+
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.check_circle, size: 80, color: AppTheme.safeColor),
+        const SizedBox(height: 16),
+        Text(
+          'SOS Sent',
+          style: Theme.of(context)
+              .textTheme
+              .headlineMedium
+              ?.copyWith(color: AppTheme.safeColor),
+        ),
+        const SizedBox(height: 8),
+        const Text('Help is on the way. Stay safe.'),
+        const SizedBox(height: 32),
+        OutlinedButton(
+          onPressed: onReset,
+          child: const Text('Return to Home'),
+        ),
+      ],
+    );
+  }
+}

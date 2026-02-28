@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Mobile</string>
+	<string>AfterMath</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>mobile</string>
+	<string>AfterMath</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -53,6 +53,28 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+
+	<!-- Bluetooth permissions -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>AfterMath uses Bluetooth to broadcast and receive emergency SOS alerts from nearby devices, even without internet.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>AfterMath uses Bluetooth to broadcast emergency SOS alerts to nearby devices.</string>
+
+	<!-- Location permission -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AfterMath includes your location in SOS alerts so responders can find you quickly.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>AfterMath needs background location access to include accurate coordinates when relaying emergency SOS alerts.</string>
+
+	<!-- Background modes -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+		<string>bluetooth-peripheral</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
