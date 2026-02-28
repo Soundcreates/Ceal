@@ -68,13 +68,6 @@ class SosScreen extends ConsumerWidget {
           },
         );
 
-      case SosPhase.locating:
-        return const _StatusView(
-          icon: Icons.my_location,
-          label: 'Acquiring location…',
-          color: Colors.amber,
-        );
-
       case SosPhase.broadcasting:
         return const _StatusView(
           icon: Icons.bluetooth_searching,

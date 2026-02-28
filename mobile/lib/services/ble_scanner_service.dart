@@ -2,6 +2,9 @@
 ///
 /// Uses [flutter_blue_plus] to scan for devices advertising the AfterMath
 /// service UUID and extracts raw packet data from the advertisement.
+///
+/// V2: passes RSSI alongside decoded packets so the relay service can
+/// include signal-strength in the backend payload.
 library;
 
 import 'dart:async';
@@ -14,11 +17,12 @@ import 'package:aftermath/models/ble_packet.dart';
 import 'package:aftermath/models/core_sos_packet.dart';
 
 /// Callback invoked when a valid fragment packet is received.
-typedef OnPacketReceived = void Function(BlePacket packet, String deviceId);
+typedef OnPacketReceived = void Function(
+    BlePacket packet, String deviceId, int rssi);
 
-/// Callback invoked when a valid 20-byte CORE SOS packet is received.
+/// Callback invoked when a valid 10-byte CORE SOS V2 packet is received.
 typedef OnCorePacketReceived = void Function(
-    CoreSosPacket packet, String deviceId);
+    CoreSosPacket packet, String deviceId, int rssi);
 
 class BleScannerService {
   BleScannerService({this.onPacketReceived, this.onCorePacketReceived});
@@ -26,7 +30,7 @@ class BleScannerService {
   /// External callback for each decoded fragment packet.
   OnPacketReceived? onPacketReceived;
 
-  /// External callback for each decoded 20-byte CORE SOS packet.
+  /// External callback for each decoded 10-byte CORE SOS V2 packet.
   OnCorePacketReceived? onCorePacketReceived;
 
   StreamSubscription<List<ScanResult>>? _scanSub;
@@ -94,12 +98,13 @@ class BleScannerService {
   void _processResult(ScanResult result) {
     final advData = result.advertisementData;
     final deviceId = result.device.remoteId.str;
+    final rssi = result.rssi;
 
     // Try manufacturer-specific data first (Android).
     for (final entry in advData.manufacturerData.entries) {
       if (entry.key == kManufacturerId) {
         final raw = Uint8List.fromList(entry.value);
-        _tryDecode(raw, deviceId);
+        _tryDecode(raw, deviceId, rssi);
         return;
       }
     }
@@ -108,41 +113,40 @@ class BleScannerService {
     for (final entry in advData.serviceData.entries) {
       if (entry.key.toString().toUpperCase().contains('BEEF')) {
         final raw = Uint8List.fromList(entry.value);
-        _tryDecode(raw, deviceId);
+        _tryDecode(raw, deviceId, rssi);
         return;
       }
     }
   }
 
-  void _tryDecode(Uint8List raw, String deviceId) {
-    // Length-based dispatch: 20 bytes → CORE packet, 13 bytes → fragment.
-    if (raw.length >= kCorePacketSize) {
-      _tryDecodeCorePacket(raw, deviceId);
-    } else if (raw.length >= kBlePacketSize) {
-      _tryDecodeFragment(raw, deviceId);
+  void _tryDecode(Uint8List raw, String deviceId, int rssi) {
+    // Length-based dispatch: 10 bytes → CORE V2 packet, 13 bytes → fragment.
+    if (raw.length >= kBlePacketSize) {
+      _tryDecodeFragment(raw, deviceId, rssi);
+    } else if (raw.length >= kCorePacketSize) {
+      _tryDecodeCorePacket(raw, deviceId, rssi);
     } else {
       debugPrint(
           '[BleScannerService] Packet too short (${raw.length}B), ignoring.');
     }
   }
 
-  void _tryDecodeCorePacket(Uint8List raw, String deviceId) {
+  void _tryDecodeCorePacket(Uint8List raw, String deviceId, int rssi) {
     try {
       final packet = CoreSosPacket.fromBytes(raw);
-      debugPrint('[BleScannerService] Received CORE packet from $deviceId');
-      onCorePacketReceived?.call(packet, deviceId);
+      debugPrint(
+          '[BleScannerService] Received CORE V2 from $deviceId (RSSI=$rssi)');
+      onCorePacketReceived?.call(packet, deviceId, rssi);
     } catch (e) {
       debugPrint('[BleScannerService] Failed to decode CORE packet: $e');
-      // Fall back to trying as a fragment.
-      _tryDecodeFragment(raw, deviceId);
     }
   }
 
-  void _tryDecodeFragment(Uint8List raw, String deviceId) {
+  void _tryDecodeFragment(Uint8List raw, String deviceId, int rssi) {
     try {
       final packet = BlePacket.fromBytes(raw);
       debugPrint('[BleScannerService] Received $packet from $deviceId');
-      onPacketReceived?.call(packet, deviceId);
+      onPacketReceived?.call(packet, deviceId, rssi);
     } catch (e) {
       debugPrint('[BleScannerService] Failed to decode packet: $e');
     }

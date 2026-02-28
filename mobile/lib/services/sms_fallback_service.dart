@@ -55,12 +55,16 @@ class SmsFallbackService {
   // -------------------------------------------------------------------------
 
   String _formatMessage(SosEvent event) {
-    final lat = event.latitude.toStringAsFixed(5);
-    final lon = event.longitude.toStringAsFixed(5);
-    final mapsUrl = 'https://maps.google.com/?q=$lat,$lon';
+    final loc = event.receiverLocation;
+    final locStr = loc != null
+        ? '${loc.lat.toStringAsFixed(5)}, ${loc.lon.toStringAsFixed(5)}'
+        : 'Unknown';
+    final mapsUrl = loc != null
+        ? 'https://maps.google.com/?q=${loc.lat},${loc.lon}'
+        : '';
     return 'EMERGENCY SOS from AfterMath!\n'
-        'Location: $lat, $lon\n'
-        '$mapsUrl\n'
+        'Approx location: $locStr\n'
+        '${mapsUrl.isNotEmpty ? '$mapsUrl\n' : ''}'
         'Time: ${event.timestamp.toIso8601String()}\n'
         'ID: ${event.id}';
   }
