@@ -4,6 +4,8 @@
 /// BLE scanner → PacketReassembler → MeshRelay → AlertsNotifier pipeline.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -70,15 +72,12 @@ class _AftermathAppState extends ConsumerState<AftermathApp> {
     final relay = ref.read(meshRelayProvider);
     final alerts = ref.read(alertsNotifierProvider.notifier);
 
-    // Scanner feeds fragment packets into the reassembler.
-    scanner.onPacketReceived = reassembler.addPacket;
-
     // Scanner feeds CORE packets directly into the reassembler.
     scanner.onCorePacketReceived = reassembler.addCorePacket;
 
     // Reassembler feeds completed SOS events into relay + alerts.
-    reassembler.onSosReassembled = (event, deviceId) {
-      relay.onSosReceived(event, deviceId);
+    reassembler.onSosReassembled = (event, deviceId, rssi) {
+      relay.onSosReceived(event, deviceId, rssi);
       alerts.addAlert(event);
     };
 
@@ -118,4 +117,3 @@ class _AftermathAppState extends ConsumerState<AftermathApp> {
     return const SosScreen();
   }
 }
-

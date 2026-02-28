@@ -55,10 +55,52 @@ CREATE INDEX IF NOT EXISTS idx_sos_events_status   ON sos_events (status);
 CREATE INDEX IF NOT EXISTS idx_sos_events_created  ON sos_events (created_at);
 `;
 
+// ---------------------------------------------------------------------------
+// User identity tables
+// ---------------------------------------------------------------------------
+
+const CREATE_USERS = `
+CREATE TABLE IF NOT EXISTS users (
+  id          UUID PRIMARY KEY,
+  name        TEXT,
+  phone       TEXT UNIQUE NOT NULL,
+  ble_uid     BYTEA UNIQUE NOT NULL,
+  language    TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+const CREATE_EMERGENCY_CONTACTS = `
+CREATE TABLE IF NOT EXISTS emergency_contacts (
+  id        UUID PRIMARY KEY,
+  user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name      TEXT,
+  phone     TEXT,
+  priority  INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_emergency_contacts_user ON emergency_contacts (user_id);
+`;
+
+const CREATE_MEDICAL_PROFILES = `
+CREATE TABLE IF NOT EXISTS medical_profiles (
+  user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  blood_group TEXT,
+  allergies   TEXT,
+  conditions  TEXT
+);
+`;
+
 async function migrate(): Promise<void> {
+  const dbUrl = new URL(env.DATABASE_URL);
+  const sslMode = dbUrl.searchParams.get('sslmode')?.toLowerCase();
+  const useSsl =
+    sslMode === 'require' ||
+    sslMode === 'verify-ca' ||
+    sslMode === 'verify-full';
+
   const pool = new Pool({
     connectionString: env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: useSsl ? { rejectUnauthorized: false } : false,
   });
 
   try {
@@ -69,6 +111,15 @@ async function migrate(): Promise<void> {
     console.log('  ✅ updated_at trigger');
     await pool.query(CREATE_INDEXES);
     console.log('  ✅ indexes');
+
+    // User identity tables
+    await pool.query(CREATE_USERS);
+    console.log('  ✅ users table');
+    await pool.query(CREATE_EMERGENCY_CONTACTS);
+    console.log('  ✅ emergency_contacts table');
+    await pool.query(CREATE_MEDICAL_PROFILES);
+    console.log('  ✅ medical_profiles table');
+
     console.log('Migrations complete.');
   } catch (err) {
     console.error('Migration failed:', err);

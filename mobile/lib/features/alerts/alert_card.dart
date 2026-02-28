@@ -75,18 +75,19 @@ class AlertCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
-              // Location
-              Row(
-                children: [
-                  const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${event.latitude.toStringAsFixed(4)}, '
-                    '${event.longitude.toStringAsFixed(4)}',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-              ),
+              // V2: show receiver location (proximity, not victim's GPS).
+              if (event.receiverLocation != null)
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      '≈ ${event.receiverLocation!.lat.toStringAsFixed(4)}, '
+                      '${event.receiverLocation!.lon.toStringAsFixed(4)}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
               const SizedBox(height: 4),
 
               // Time

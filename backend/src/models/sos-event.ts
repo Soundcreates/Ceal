@@ -64,3 +64,37 @@ export interface SosEvent {
 
 export type SosIngestPayload = z.infer<typeof sosIngestSchema>;
 export type SosAckPayload = z.infer<typeof sosAckSchema>;
+
+// ---------------------------------------------------------------------------
+// User-related types
+// ---------------------------------------------------------------------------
+
+export interface User {
+  id: string;
+  name: string | null;
+  phone: string;
+  bleUid: Buffer;
+  language: string | null;
+  createdAt: string;
+}
+
+export interface EmergencyContact {
+  id: string;
+  userId: string;
+  name: string | null;
+  phone: string | null;
+  priority: number;
+}
+
+export interface MedicalProfile {
+  userId: string;
+  bloodGroup: string | null;
+  allergies: string | null;
+  conditions: string | null;
+}
+
+export interface FullUserProfile {
+  user: User;
+  contacts: EmergencyContact[];
+  medical: MedicalProfile | null;
+}

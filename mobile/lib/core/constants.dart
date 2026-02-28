@@ -20,8 +20,11 @@ const int kBlePacketSize = 13;
 /// Header occupies the first 3 bytes of each packet.
 const int kBleHeaderSize = 3;
 
-/// Payload occupies the remaining 10 bytes (4B lat + 4B lon + 2B deviceHash).
+/// Payload occupies the remaining 10 bytes of each fragment.
 const int kBlePayloadSize = 10;
+
+/// Size of the static pseudonymous BLE UID (6 bytes).
+const int kBleUidSize = 6;
 
 /// Maximum time-to-live hops for mesh relay.
 const int kDefaultTtl = 5;
@@ -118,8 +121,9 @@ const String kForegroundNotifBody =
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Size of the 20-byte CORE SOS packet.
-const int kCorePacketSize = 20;
+/// Size of the 10-byte CORE SOS V2 packet.
+/// Layout: version(1) + flags(1) + bleUid(6) + sequence(1) + CRC8(1) = 10.
+const int kCorePacketSize = 10;
 
 /// Pre-built empty fragment packet (useful for comparisons).
 final Uint8List kEmptyPacket = Uint8List(kBlePacketSize);

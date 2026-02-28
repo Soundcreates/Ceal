@@ -1,10 +1,14 @@
 /// Global Riverpod providers for AfterMath services.
 library;
 
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/core/encryption.dart';
 import 'package:aftermath/core/env.dart';
 import 'package:aftermath/core/permissions.dart';
@@ -71,6 +75,7 @@ final meshRelayProvider = Provider<MeshRelayService>((ref) {
     advertiser: ref.watch(bleAdvertiserProvider),
     backendService: ref.watch(backendServiceProvider),
     queueService: ref.watch(queueServiceProvider),
+    locationService: ref.watch(locationServiceProvider),
   );
   ref.onDispose(() => svc.dispose());
   return svc;
@@ -100,4 +105,31 @@ final deviceUuidProvider = FutureProvider<String>((ref) async {
     await storage.write(key: key, value: uuid);
   }
   return uuid;
+});
+
+/// Persistent 6-byte BLE UID stored in secure storage.
+///
+/// Generated once per install — a pseudonymous static identifier used in
+/// CORE V2 packets. NOT derived from device ID; fully random.
+final bleUidProvider = FutureProvider<Uint8List>((ref) async {
+  const storage = FlutterSecureStorage();
+  const key = 'aftermath_ble_uid';
+  final stored = await storage.read(key: key);
+  if (stored != null && stored.length == kBleUidSize * 2) {
+    // Stored as hex string — decode back to bytes.
+    final bytes = Uint8List(kBleUidSize);
+    for (int i = 0; i < kBleUidSize; i++) {
+      bytes[i] = int.parse(stored.substring(i * 2, i * 2 + 2), radix: 16);
+    }
+    return bytes;
+  }
+  // Generate random 6-byte UID.
+  final rng = Random.secure();
+  final uid = Uint8List(kBleUidSize);
+  for (int i = 0; i < kBleUidSize; i++) {
+    uid[i] = rng.nextInt(256);
+  }
+  final hex = uid.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  await storage.write(key: key, value: hex);
+  return uid;
 });
