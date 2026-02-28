@@ -36,6 +36,25 @@ void _logException(String tag, String method, Uri url, Object e) {
   debugPrint('[$tag] $method ${url.path} threw: $e');
 }
 
+class SignupResult {
+  const SignupResult({
+    required this.success,
+    this.userId,
+    this.token,
+    this.bleUid,
+    this.statusCode,
+    this.error,
+  });
+
+  final bool success;
+  final String? userId;
+  final String? token;
+  /// Server-confirmed 12-hex BLE UID the device should broadcast.
+  final String? bleUid;
+  final int? statusCode;
+  final String? error;
+}
+
 class AadhaarQrSubmitResult {
   const AadhaarQrSubmitResult({
     required this.success,
@@ -104,6 +123,68 @@ class BackendService {
       _logException('BackendService', 'POST', url, e);
       debugPrint('[BackendService] ingestSos elapsed before error: ${sw.elapsedMilliseconds}ms');
       return false;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Onboarding — Signup
+  // -------------------------------------------------------------------------
+
+  /// Register a new user. Sends the device's own BLE UID so the DB record
+  /// matches what the device broadcasts over BLE.
+  Future<SignupResult> signup({
+    required String phone,
+    required String bleUid,
+    String? name,
+    List<Map<String, dynamic>>? emergencyContacts,
+  }) async {
+    final url = Uri.parse('$_baseUrl$kApiOnboardingSignup');
+    final payload = <String, dynamic>{
+      'phone': phone,
+      'bleUid': bleUid,
+      if (name != null && name.isNotEmpty) 'name': name,
+      if (emergencyContacts != null && emergencyContacts.isNotEmpty)
+        'emergencyContacts': emergencyContacts,
+    };
+    final body = jsonEncode(payload);
+    debugPrint('[BackendService] → POST ${url.path} | phone=$phone bleUid=$bleUid');
+    final sw = Stopwatch()..start();
+    try {
+      final response = await _client
+          .post(url, headers: _headers, body: body)
+          .timeout(const Duration(seconds: 10));
+      sw.stop();
+      _logResponse('BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds,
+          bodyExcerpt: response.statusCode >= 400 ? response.body : null);
+
+      if (response.statusCode == 201) {
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        final user = decoded['user'] as Map<String, dynamic>?;
+        return SignupResult(
+          success: true,
+          statusCode: response.statusCode,
+          userId: user?['id'] as String?,
+          token: decoded['token'] as String?,
+          bleUid: user?['bleUid'] as String?,
+        );
+      }
+
+      String? msg;
+      try {
+        final d = jsonDecode(response.body);
+        if (d is Map<String, dynamic>) {
+          msg = (d['error'] as String?)?.trim();
+        }
+      } catch (_) {}
+      return SignupResult(
+        success: false,
+        statusCode: response.statusCode,
+        error: msg ?? 'Signup failed (${response.statusCode})',
+      );
+    } catch (e) {
+      sw.stop();
+      _logException('BackendService', 'POST', url, e);
+      return SignupResult(success: false, error: 'Network error: $e');
     }
   }
 

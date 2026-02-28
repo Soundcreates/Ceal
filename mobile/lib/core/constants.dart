@@ -101,6 +101,9 @@ const String kApiSosActive = '/sos/active';
 /// Endpoint: verify Aadhaar via scanned QR XML.
 const String kApiOnboardingVerifyAadhaarQr = '/onboarding/verify-aadhaar-qr';
 
+/// Endpoint: register a new user (signup).
+const String kApiOnboardingSignup = '/onboarding/signup';
+
 // ---------------------------------------------------------------------------
 // Local Database
 // ---------------------------------------------------------------------------

@@ -355,7 +355,7 @@ describe('Escalation timer', () => {
     expect(res.status).toBe(200);
   });
 
-  it('immediately sends distress SMS to emergency contacts on ingest', async () => {
+  it('immediately sends distress SMS to contacts AND escalation operator on ingest', async () => {
     const app = buildApp();
     mockQuery.mockReset();
     mockCreate.mockClear();
@@ -387,9 +387,11 @@ describe('Escalation timer', () => {
     // Allow the fire-and-forget Promise.allSettled to settle
     await new Promise((r) => setTimeout(r, 10));
 
-    // Both emergency contacts should have received an immediate SMS
+    // All three recipients should have received an immediate SMS
     const destinations = mockCreate.mock.calls.map((c: any[]) => c[0].to as string);
     expect(destinations).toContain('+911111111111'); // Mom
     expect(destinations).toContain('+912222222222'); // Dad
+    expect(destinations).toContain(process.env['TWILIO_ESCALATION_NUMBER'] ?? expect.any(String)); // operator
+    expect(mockCreate).toHaveBeenCalledTimes(3); // 2 contacts + 1 escalation
   });
 });

@@ -67,6 +67,13 @@ export const signupSchema = z.object({
     .string()
     .max(10)
     .default('en'),
+  /** Device-generated BLE UID (12 hex chars = 6 bytes). If provided, this UID
+   *  is stored verbatim so the device's broadcast matches the DB record.
+   *  If omitted, the server generates a deterministic UID from userId + secret. */
+  bleUid: z
+    .string()
+    .regex(/^[0-9a-f]{12}$/, 'bleUid must be exactly 12 lowercase hex characters')
+    .optional(),
   emergencyContacts: z
     .array(emergencyContactSchema)
     .max(10, 'Maximum 10 emergency contacts')

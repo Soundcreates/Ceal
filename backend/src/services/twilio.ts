@@ -22,6 +22,12 @@ export interface SmsPayload {
   longitude: number;
   timestamp: string;
   message?: string;
+  /** Victim's name if the BLE UID resolved to a registered user. */
+  victimName?: string | null;
+  /** Number of emergency contacts already notified. */
+  contactsNotified?: number;
+  /** Whether this is a follow-up reminder (30s timer). */
+  isReminder?: boolean;
 }
 
 export interface ContactSmsPayload {
@@ -41,12 +47,16 @@ export interface ContactSmsPayload {
  */
 export async function sendEscalationSms(payload: SmsPayload): Promise<boolean> {
   const mapsUrl = `https://maps.google.com/?q=${payload.latitude},${payload.longitude}`;
+  const prefix = payload.isReminder ? '[REMINDER] SOS unacknowledged 30s' : '[SOS ALERT]';
+  const victim = payload.victimName ?? 'Unknown';
+  const contacts = payload.contactsNotified != null ? ` | Contacts: ${payload.contactsNotified}` : '';
+  // Keep body under 160 chars (single GSM-7 segment, no emoji) for Twilio trial compatibility.
   const body = [
-    `🚨 SOS ALERT`,
-    payload.message ?? '',
+    `${prefix} ${victim}${contacts}`,
+    `ID: ${payload.sosId}`,
+    `${payload.latitude.toFixed(5)},${payload.longitude.toFixed(5)}`,
     mapsUrl,
   ]
-    .filter(Boolean)
     .join('\n');
 
   try {
@@ -55,7 +65,7 @@ export async function sendEscalationSms(payload: SmsPayload): Promise<boolean> {
       from: env.TWILIO_FROM_NUMBER,
       to: env.TWILIO_ESCALATION_NUMBER,
     });
-    logger.info(`SMS sent to ${env.TWILIO_ESCALATION_NUMBER} — SID: ${msg.sid}`);
+    logger.info(`Escalation SMS sent to ${env.TWILIO_ESCALATION_NUMBER} — SID: ${msg.sid}`);
     return true;
   } catch (err) {
     logger.error('Failed to send escalation SMS', err);
@@ -70,13 +80,14 @@ export async function sendEscalationSms(payload: SmsPayload): Promise<boolean> {
  */
 export async function sendContactSms(payload: ContactSmsPayload): Promise<boolean> {
   const mapsUrl = `https://maps.google.com/?q=${payload.latitude},${payload.longitude}`;
-  const name = payload.victimName ?? 'Someone';
+  const name = payload.victimName ?? 'Someone you know';
+  // Keep body under 160 chars (single GSM-7 segment, no emoji) for Twilio trial compatibility.
   const body = [
-    `🚨 ${name} sent an SOS!`,
-    payload.message ?? '',
+    `EMERGENCY: ${name} needs help! SOS activated.`,
+    `${payload.latitude.toFixed(5)},${payload.longitude.toFixed(5)}`,
     mapsUrl,
+    'Call 112 immediately.',
   ]
-    .filter(Boolean)
     .join('\n');
 
   try {
