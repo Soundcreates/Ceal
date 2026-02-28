@@ -121,8 +121,8 @@ const String kQueueTable = 'outgoing_packets';
 // App Strings
 // ---------------------------------------------------------------------------
 
-const String kAppName = 'AfterMath';
-const String kForegroundNotifTitle = 'AfterMath Active';
+const String kAppName = 'CEAL';
+const String kForegroundNotifTitle = 'CEAL Active';
 const String kForegroundNotifBody =
     'Monitoring for nearby emergency SOS alerts.';
 

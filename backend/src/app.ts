@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Express application factory.
+ * CEAL Backend — Express application factory.
  *
  * Separated from the server listener so tests can import the app
  * without starting a listening server.
@@ -19,6 +19,7 @@ import { createHealthRouter } from './routes/health.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createUsersRouter } from './routes/users.js';
 import { createOnboardingRouter } from './routes/onboarding.js';
+import { createAdminRouter } from './routes/admin.js';
 
 // ---------------------------------------------------------------------------
 // Sensitive fields to redact from logged request bodies
@@ -92,10 +93,11 @@ export function createApp(pool: Pool): express.Express {
   app.use('/v1/onboarding', createOnboardingRouter(pool));
   app.use('/v1/sos', createSosRouter(pool));
   app.use('/v1/users', createUsersRouter(pool));
+  app.use('/v1/admin', createAdminRouter(pool));
 
   // Root health check (convenience)
   app.get('/', (_req, res) => {
-    res.json({ service: 'aftermath-backend', version: '1.0.0' });
+    res.json({ service: 'ceal-backend', version: '1.0.0' });
   });
 
   // ---------------------------------------------------------------------------

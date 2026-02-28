@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Escalation timer service.
+ * CEAL Backend — Escalation timer service.
  *
  * Tracks whether an SOS is acknowledged within the timeout window.
  * An SMS is already sent immediately on ingest; this timer only logs if

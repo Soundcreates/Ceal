@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — SOS Event model & Zod validation.
+ * CEAL Backend — SOS Event model & Zod validation.
  *
  * V2 privacy-first protocol:
  *   {id, bleUid (hex), flags, sequence, timestamp, status, relayHops,

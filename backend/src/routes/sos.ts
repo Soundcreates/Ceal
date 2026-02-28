@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — SOS routes.
+ * CEAL Backend — SOS routes.
  *
  * POST /sos/ingest                — Receive & store an SOS event from mobile
  * POST /sos/acknowledge           — Acknowledge an active SOS

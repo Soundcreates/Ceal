@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Twilio SMS service.
+ * CEAL Backend — Twilio SMS service.
  *
  * Sends SMS alerts to the escalation number when an SOS is not acknowledged,
  * and distress messages to the victim's registered emergency contacts.

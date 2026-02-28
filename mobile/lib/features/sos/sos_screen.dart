@@ -329,7 +329,7 @@ class _BroadcastingView extends ConsumerWidget {
                 Divider(height: 1, thickness: 1, color: AppTheme.nbInk.withValues(alpha: 0.15)),
             itemBuilder: (context, i) {
               final r = results[i];
-              final isAfterMath =
+              final isCealDevice =
                   r.advertisementData.manufacturerData.containsKey(kManufacturerId);
               final advName = r.advertisementData.advName;
               final label = advName.isNotEmpty
@@ -338,21 +338,21 @@ class _BroadcastingView extends ConsumerWidget {
               return ListTile(
                 dense: true,
                 leading: NBIconBox(
-                  icon: isAfterMath ? Icons.warning_amber_rounded : Icons.bluetooth,
+                  icon: isCealDevice ? Icons.warning_amber_rounded : Icons.bluetooth,
                   size: 32,
-                  bgColor: isAfterMath
+                  bgColor: isCealDevice
                       ? AppTheme.nbWarn.withValues(alpha: 0.2)
                       : AppTheme.nbAccent2.withValues(alpha: 0.1),
-                  color: isAfterMath ? AppTheme.nbWarn : AppTheme.nbInk.withValues(alpha: 0.4),
+                  color: isCealDevice ? AppTheme.nbWarn : AppTheme.nbInk.withValues(alpha: 0.4),
                 ),
                 title: Text(
                   label,
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   overflow: TextOverflow.ellipsis,
                 ),
-                subtitle: isAfterMath
+                subtitle: isCealDevice
                     ? Text(
-                        'AfterMath device',
+                        'CEAL device',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,

@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — User profile service.
+ * CEAL Backend — User profile service.
  *
  * Fetches a complete user profile (user + emergency contacts + medical info)
  * for use in escalation enrichment.

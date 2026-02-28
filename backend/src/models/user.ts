@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — User model & Zod validation.
+ * CEAL Backend — User model & Zod validation.
  *
  * Represents a civilian user who has onboarded via signup + Aadhaar KYC.
  *

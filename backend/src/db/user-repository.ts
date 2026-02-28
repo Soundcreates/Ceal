@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — User data-access layer.
+ * CEAL Backend — User data-access layer.
  *
  * All queries are parameterised. No string interpolation in SQL.
  *

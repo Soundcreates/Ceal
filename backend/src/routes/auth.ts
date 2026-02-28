@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Auth routes (token generation for testing/admin).
+ * CEAL Backend — Auth routes (token generation for testing/admin).
  */
 
 import { Router, type Request, type Response } from 'express';

@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Onboarding routes.
+ * CEAL Backend — Onboarding routes.
  *
  * Handles user signup, Aadhaar ZK verification, and profile retrieval.
  *

@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — BLE UID resolution & generation service.
+ * CEAL Backend — BLE UID resolution & generation service.
  *
  * - resolveUid: Accepts a 6-byte BLE UID (Buffer) and resolves it to a registered user.
  * - generateBleUid: Deterministic 6-byte BLE UID from userId + server secret.

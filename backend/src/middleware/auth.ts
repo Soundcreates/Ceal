@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — JWT authentication middleware.
+ * CEAL Backend — JWT authentication middleware.
  *
  * Verifies Bearer tokens on protected routes.
  * Unprotected routes (like SOS ingest from mobile) can skip this middleware.
