@@ -130,20 +130,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _syncContactsToSmsService();
               },
             ),
-          Text('SMS Fallback', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            title: const Text('Enable SMS Fallback'),
-            subtitle: const Text(
-              'Send SMS to emergency contacts if BLE relay fails.',
-            ),
-            value: _smsFallbackEnabled,
-            onChanged: (val) async {
-              setState(() => _smsFallbackEnabled = val);
-              final settings = ref.read(settingsServiceProvider);
-              await settings.setSmsEnabled(val);
-              _syncContactsToSmsService();
-            },
           ),
           const SizedBox(height: 20),
 
@@ -151,9 +137,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const NBSectionHeader(
             icon: Icons.contacts_outlined,
             label: 'Emergency Contacts',
-          Text(
-            'Emergency Contacts',
-            style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           if (_contacts.isNotEmpty)

@@ -65,13 +65,16 @@ class BleAdvertiserService {
   }
 
   Future<void> stopAdvertising() async {
-    if (!_isAdvertising) return;
+    // Always ask the controller to stop — even if our flag says idle — 
+    // because a failed start() can leave a phantom hardware slot allocated.
     try {
       await _peripheral.stop();
     } catch (e) {
       debugPrint('[BleAdvertiserService] Stop error: $e');
     }
     _isAdvertising = false;
+    // Give the BLE controller time to fully release the advertising set.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
   }
 
   Future<void> _advertiseRawBytes(Uint8List raw) async {
@@ -103,6 +106,23 @@ class BleAdvertiserService {
       debugPrint('[BleAdvertiserService] Advertising started OK');
     } catch (e, st) {
       debugPrint('[BleAdvertiserService] Advertise error: $e\n$st');
+
+      // Retry once on TOO_MANY_ADVERTISERS — force-stop all slots first.
+      if (e.toString().contains('TOO_MANY_ADVERTISERS')) {
+        debugPrint('[BleAdvertiserService] Retrying after forced stop…');
+        await stopAdvertising();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        try {
+          await _peripheral.start(
+            advertiseData: advertiseData,
+            advertiseSettings: advertiseSettings,
+          );
+          _isAdvertising = true;
+          debugPrint('[BleAdvertiserService] Retry succeeded');
+        } catch (e2) {
+          debugPrint('[BleAdvertiserService] Retry also failed: $e2');
+        }
+      }
     }
   }
 
