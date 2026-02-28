@@ -9,8 +9,12 @@ import Twilio from 'twilio';
 import { env } from '../config.js';
 import { logger } from '../logger.js';
 
-// Account SID + Auth Token auth (standard credential pair).
-const client = Twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
+// Prefer API Key auth when available, fall back to Account SID + Auth Token.
+const client = env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET
+  ? Twilio(env.TWILIO_API_KEY_SID, env.TWILIO_API_KEY_SECRET, {
+      accountSid: env.TWILIO_ACCOUNT_SID,
+    })
+  : Twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
 
 export interface SmsPayload {
   sosId: string;
@@ -38,14 +42,9 @@ export interface ContactSmsPayload {
 export async function sendEscalationSms(payload: SmsPayload): Promise<boolean> {
   const mapsUrl = `https://maps.google.com/?q=${payload.latitude},${payload.longitude}`;
   const body = [
-    `🚨 AfterMath SOS ALERT`,
-    `ID: ${payload.sosId}`,
-    `Time: ${payload.timestamp}`,
-    `Location: ${payload.latitude.toFixed(6)}, ${payload.longitude.toFixed(6)}`,
-    `Map: ${mapsUrl}`,
-    payload.message ? `Msg: ${payload.message}` : '',
-    '',
-    'This SOS was NOT acknowledged within the timeout window.',
+    `🚨 SOS ALERT`,
+    payload.message ?? '',
+    mapsUrl,
   ]
     .filter(Boolean)
     .join('\n');
@@ -71,16 +70,11 @@ export async function sendEscalationSms(payload: SmsPayload): Promise<boolean> {
  */
 export async function sendContactSms(payload: ContactSmsPayload): Promise<boolean> {
   const mapsUrl = `https://maps.google.com/?q=${payload.latitude},${payload.longitude}`;
-  const name = payload.victimName ?? 'Someone you know';
+  const name = payload.victimName ?? 'Someone';
   const body = [
-    `🚨 EMERGENCY: ${name} needs help!`,
-    `They activated the AfterMath SOS distress signal.`,
-    `Approx location: ${payload.latitude.toFixed(6)}, ${payload.longitude.toFixed(6)}`,
-    `Map: ${mapsUrl}`,
-    `Time: ${payload.timestamp}`,
-    payload.message ? `Message: "${payload.message}"` : '',
-    '',
-    'Please respond immediately or contact emergency services.',
+    `🚨 ${name} sent an SOS!`,
+    payload.message ?? '',
+    mapsUrl,
   ]
     .filter(Boolean)
     .join('\n');

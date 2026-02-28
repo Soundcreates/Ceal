@@ -24,8 +24,8 @@ const envSchema = z.object({
   // Twilio
   TWILIO_ACCOUNT_SID: z.string().startsWith('AC'),
   TWILIO_AUTH_TOKEN: z.string().min(1),
-  TWILIO_API_KEY_SID: z.string().startsWith('SK'),
-  TWILIO_API_KEY_SECRET: z.string().min(1),
+  TWILIO_API_KEY_SID: z.string().startsWith('SK').optional(),
+  TWILIO_API_KEY_SECRET: z.string().min(1).optional(),
   TWILIO_FROM_NUMBER: z.string().startsWith('+'),
   TWILIO_ESCALATION_NUMBER: z.string().startsWith('+'),
 
