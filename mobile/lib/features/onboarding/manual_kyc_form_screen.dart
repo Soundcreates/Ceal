@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
+import 'package:aftermath/core/env.dart';
 import 'package:aftermath/providers.dart';
 
 class ManualKycFormScreen extends ConsumerStatefulWidget {
@@ -111,17 +113,24 @@ class _ManualKycFormScreenState extends ConsumerState<ManualKycFormScreen> {
               children: [
                 Row(
                   children: [
-                    IconButton(
-                      onPressed: widget.onBackToScan,
-                      icon: const Icon(Icons.arrow_back),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.zero,
+                        border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+                      ),
+                      child: IconButton(
+                        onPressed: widget.onBackToScan,
+                        icon: const Icon(Icons.arrow_back, size: 18),
+                        padding: EdgeInsets.zero,
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Manual KYC Details',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: theme.textTheme.headlineSmall,
                       ),
                     ),
                   ],
@@ -130,7 +139,7 @@ class _ManualKycFormScreenState extends ConsumerState<ManualKycFormScreen> {
                 Text(
                   'Aadhaar scan was skipped. Fill the details manually to continue.',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey.shade700,
+                    color: AppTheme.nbInk.withValues(alpha: 0.6),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -224,27 +233,27 @@ class _ManualKycFormScreenState extends ConsumerState<ManualKycFormScreen> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.redAccent),
+                  NBCard(
+                    color: AppTheme.nbError.withValues(alpha: 0.08),
+                    borderColor: AppTheme.nbError,
+                    shadow: false,
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: AppTheme.nbError, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
-                  height: 54,
-                  child: FilledButton(
+                  child: NBButton(
+                    label: 'Submit Manual Details',
                     onPressed: _submitting ? null : _submit,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.sosColor,
-                    ),
-                    child: _submitting
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Submit Manual Details'),
+                    icon: Icons.check,
+                    isLoading: _submitting,
+                    color: AppTheme.sosColor,
+                    expanded: true,
                   ),
                 ),
               ],

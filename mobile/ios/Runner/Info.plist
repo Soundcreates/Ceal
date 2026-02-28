@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>AfterMath</string>
+	<string>CEAL</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>AfterMath</string>
+	<string>CEAL</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -56,17 +56,17 @@
 
 	<!-- Bluetooth permissions -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>AfterMath uses Bluetooth to broadcast and receive emergency SOS alerts from nearby devices, even without internet.</string>
+	<string>CEAL uses Bluetooth to broadcast and receive emergency SOS alerts from nearby devices, even without internet.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>AfterMath uses Bluetooth to broadcast emergency SOS alerts to nearby devices.</string>
+	<string>CEAL uses Bluetooth to broadcast emergency SOS alerts to nearby devices.</string>
 
 	<!-- Location permission -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>AfterMath includes your location in SOS alerts so responders can find you quickly.</string>
+	<string>CEAL includes your location in SOS alerts so responders can find you quickly.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>AfterMath needs background location access to include accurate coordinates when relaying emergency SOS alerts.</string>
+	<string>CEAL needs background location access to include accurate coordinates when relaying emergency SOS alerts.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>AfterMath uses the camera to scan Aadhaar QR during onboarding verification.</string>
+	<string>CEAL uses the camera to scan Aadhaar QR during onboarding verification.</string>
 
 	<!-- Background modes -->
 	<key>UIBackgroundModes</key>

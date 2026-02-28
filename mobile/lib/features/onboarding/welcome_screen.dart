@@ -1,9 +1,10 @@
-/// Welcome Screen — first launch introduction to AfterMath.
+/// Welcome Screen — first launch introduction to CEAL.
 library;
 
 import 'package:flutter/material.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key, required this.onGetStarted});
@@ -17,79 +18,90 @@ class WelcomeScreen extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
             children: [
               const Spacer(flex: 2),
 
-              // Logo / icon
+              // Logo — CEAL brand mark
               Container(
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.sosColor.withValues(alpha: 0.15),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+                  border: Border.all(
+                    color: AppTheme.nbInk,
+                    width: AppTheme.nbBorder,
+                  ),
+                  boxShadow: AppTheme.nbShadow,
                 ),
-                child: const Icon(
-                  Icons.health_and_safety,
-                  size: 64,
-                  color: AppTheme.sosColor,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Image.asset(
+                    'assets/logo.png',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
               Text(
-                'AfterMath',
-                style: theme.textTheme.headlineLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                'CEAL',
+                style: theme.textTheme.headlineLarge,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Text(
-                'Emergency SOS Network',
+                'Civic Emergency Access Layer',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.grey,
+                  color: AppTheme.nbInk.withValues(alpha: 0.5),
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 36),
 
-              // Feature highlights
+              // Feature highlights — NB cards
               const _FeatureRow(
                 icon: Icons.bluetooth,
                 title: 'Offline BLE Mesh',
                 subtitle:
                     'Broadcast SOS alerts to nearby devices without internet.',
+                accentColor: AppTheme.nbAccent2,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               const _FeatureRow(
                 icon: Icons.people,
                 title: 'Local Responders',
                 subtitle:
                     'Nearby app users see your alert instantly and can help.',
+                accentColor: AppTheme.nbAccent,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               const _FeatureRow(
                 icon: Icons.sms,
                 title: 'SMS Fallback',
                 subtitle:
                     'Automatic SMS to emergency contacts if relay fails.',
+                accentColor: AppTheme.nbWarn,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               const _FeatureRow(
                 icon: Icons.verified_user,
                 title: 'Accountability',
                 subtitle:
                     'Every SOS and response is logged for civic review.',
+                accentColor: AppTheme.nbOk,
               ),
 
               const Spacer(flex: 3),
 
+              // NB primary button with shadow
               SizedBox(
                 width: double.infinity,
-                height: 56,
-                child: FilledButton(
+                child: NBButton(
+                  label: 'Get Started',
                   onPressed: onGetStarted,
-                  child: const Text('Get Started'),
+                  icon: Icons.arrow_forward,
+                  expanded: true,
                 ),
               ),
               const SizedBox(height: 32),
@@ -106,24 +118,35 @@ class _FeatureRow extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.accentColor,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 32, color: AppTheme.sosColor),
-        const SizedBox(width: 16),
+        NBIconBox(
+          icon: icon,
+          size: 42,
+          bgColor: (accentColor ?? AppTheme.nbAccent).withValues(alpha: 0.2),
+          color: AppTheme.nbInk,
+        ),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  )),
+              const SizedBox(height: 2),
               Text(subtitle,
                   style: Theme.of(context).textTheme.bodySmall),
             ],
