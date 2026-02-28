@@ -34,6 +34,9 @@ class _MyHomePageState extends State<MyHomePage> {
   static const EventChannel _volumeEventChannel = EventChannel(
     'volume_trigger/events',
   );
+  static const MethodChannel _methodChannel = MethodChannel(
+    'volume_trigger/methods',
+  );
 
   StreamSubscription<dynamic>? _volumeSubscription;
   int _doublePressCount = 0;
@@ -43,9 +46,39 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
 
     if (Platform.isAndroid) {
+      _ensureNotificationPermission();
       _volumeSubscription = _volumeEventChannel.receiveBroadcastStream().listen(
         _onVolumeEvent,
         onError: _onVolumeError,
+      );
+    }
+  }
+
+  Future<void> _ensureNotificationPermission() async {
+    try {
+      final enabled =
+          await _methodChannel.invokeMethod<bool>('areNotificationsEnabled') ??
+          false;
+      if (enabled) return;
+
+      final granted =
+          await _methodChannel.invokeMethod<bool>(
+            'requestNotificationPermission',
+          ) ??
+          false;
+      if (!granted && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Notification permission denied. Foreground notification may be hidden.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Notification permission check failed: $e')),
       );
     }
   }

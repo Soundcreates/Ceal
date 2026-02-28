@@ -29,7 +29,9 @@ class AppForegroundService : Service() {
             .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
             .setContentTitle("Volume Trigger Active")
             .setContentText("Foreground service started by double volume-up press")
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOnlyAlertOnce(true)
             .setOngoing(true)
 
         buildOpenAppPendingIntent()?.let { pendingIntent ->
@@ -56,7 +58,7 @@ class AppForegroundService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Volume Trigger Service",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             )
             channel.description = "Notification channel for volume-trigger foreground service"
 
