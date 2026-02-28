@@ -18,6 +18,7 @@ import 'package:aftermath/features/onboarding/permission_screen.dart';
 import 'package:aftermath/features/onboarding/signup_screen.dart';
 import 'package:aftermath/features/onboarding/welcome_screen.dart';
 import 'package:aftermath/features/settings/settings_screen.dart';
+import 'package:aftermath/features/sos/sos_notifier.dart';
 import 'package:aftermath/features/sos/sos_screen.dart';
 import 'package:aftermath/providers.dart';
 
@@ -114,9 +115,15 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
       dynamic event,
     ) {
       if (!mounted || event != 'double_volume_up') return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Double volume-up detected')),
-      );
+
+      // Ensure the user is on the SOS screen.
+      if (_step != _OnboardingStep.home) {
+        setState(() => _step = _OnboardingStep.home);
+      }
+
+      // Fire SOS immediately (starts the cancellable countdown).
+      HapticFeedback.heavyImpact();
+      ref.read(sosNotifierProvider.notifier).triggerSos();
     });
   }
 
