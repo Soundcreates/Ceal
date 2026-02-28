@@ -62,6 +62,10 @@ class BackgroundRelayService {
   final SosNotificationService notificationService;
   AlertsNotifier? alertsNotifier;
 
+  /// This device's own BLE UID (hex) — set at startup so the scanner
+  /// ignores packets originated by this device (self-loop prevention).
+  String? ownBleUidHex;
+
   Timer? _scanRestartTimer;
   bool _running = false;
 
@@ -113,6 +117,13 @@ class BackgroundRelayService {
   // ---------------------------------------------------------------------------
 
   void _onCorePacket(CoreSosPacket packet, String deviceId, int rssi) {
+    // Self-loop guard — ignore our own BLE advertisements picked up by
+    // our own scanner. Without this the victim device wastes resources
+    // trying to relay its own SOS.
+    if (ownBleUidHex != null && packet.bleUidHex == ownBleUidHex) {
+      return; // silently skip — no log spam
+    }
+
     final dedupKey = '${packet.bleUidHex}:${packet.sequence}';
 
     // Check dedup cache.
@@ -126,17 +137,19 @@ class BackgroundRelayService {
     _addToDedup(dedupKey);
 
     debugPrint(
-      '[BackgroundRelay] NEW SOS packet | uid=${packet.bleUidHex} seq=${packet.sequence} '
-      'rssi=$rssi flags=0x${packet.flags.toRadixString(16).padLeft(2, '0')} '
+      '[BackgroundRelay] *** NEW SOS DETECTED *** | uid=${packet.bleUidHex} '
+      'seq=${packet.sequence} rssi=$rssi '
+      'flags=0x${packet.flags.toRadixString(16).padLeft(2, '0')} '
       'deviceId=$deviceId | cacheSize=${_dedupCache.length}',
     );
 
-    // Fire-and-forget the async pipeline.
+    // Fire-and-forget the async pipeline (with top-level safety net).
     _handleNewSos(packet, deviceId, rssi);
   }
 
   Future<void> _handleNewSos(
       CoreSosPacket packet, String deviceId, int rssi) async {
+   try {
     final bleUid = packet.bleUidHex;
 
     // 1. Get location.
@@ -241,6 +254,12 @@ class BackgroundRelayService {
 
     // 11. Re-broadcast via BLE mesh.
     _rebroadcast(packet);
+   } catch (e, st) {
+    debugPrint(
+      '[BackgroundRelay] *** _handleNewSos FAILED *** | '
+      'uid=${packet.bleUidHex} seq=${packet.sequence} | error: $e\n$st',
+    );
+   }
   }
 
   // ---------------------------------------------------------------------------

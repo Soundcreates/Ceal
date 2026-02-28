@@ -117,10 +117,15 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
       alerts.addAlert(event);
     };
 
-    ref.read(foregroundServiceProvider).init();
-    // Always-on background relay — wire alerts notifier.
+    // Always-on background relay — wire alerts notifier + own BLE UID.
     final bgRelay = ref.read(backgroundRelayProvider);
     bgRelay.alertsNotifier = alerts;
+
+    // Set own BLE UID so the relay skips self-originated packets.
+    final ownUid = await ref.read(bleUidProvider.future);
+    bgRelay.ownBleUidHex =
+        ownUid.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    debugPrint('[AppBootstrap] Own BLE UID = ${bgRelay.ownBleUidHex}');
 
     // Start foreground service (Android persistent notification).
     await ref.read(foregroundServiceProvider).init();
