@@ -91,9 +91,16 @@ CREATE TABLE IF NOT EXISTS medical_profiles (
 `;
 
 async function migrate(): Promise<void> {
+  const dbUrl = new URL(env.DATABASE_URL);
+  const sslMode = dbUrl.searchParams.get('sslmode')?.toLowerCase();
+  const useSsl =
+    sslMode === 'require' ||
+    sslMode === 'verify-ca' ||
+    sslMode === 'verify-full';
+
   const pool = new Pool({
     connectionString: env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: useSsl ? { rejectUnauthorized: false } : false,
   });
 
   try {
