@@ -14,14 +14,14 @@ const String kSosServiceUuid = '0000BEEF-0000-1000-8000-00805F9B34FB';
 /// Manufacturer ID embedded in BLE advertisement (Android only).
 const int kManufacturerId = 0x1234;
 
-/// Total BLE packet size: 3-byte header + 8-byte payload.
-const int kBlePacketSize = 11;
+/// Total BLE fragment packet size: 3-byte header + 10-byte payload.
+const int kBlePacketSize = 13;
 
 /// Header occupies the first 3 bytes of each packet.
 const int kBleHeaderSize = 3;
 
-/// Payload occupies the remaining 8 bytes.
-const int kBlePayloadSize = 8;
+/// Payload occupies the remaining 10 bytes (4B lat + 4B lon + 2B deviceHash).
+const int kBlePayloadSize = 10;
 
 /// Maximum time-to-live hops for mesh relay.
 const int kDefaultTtl = 5;
@@ -73,11 +73,10 @@ const Duration kPacketMaxAge = Duration(minutes: 10);
 // GPS Encoding
 // ---------------------------------------------------------------------------
 
-/// Scale factor for compressing lat/lon into 3 bytes each.
-/// 3 bytes → 0..16 777 215.  Lat range −90..+90 → shift +90  → 0..180.
-/// 180 * 1e5 = 18 000 000 which fits in 3 bytes (max 16 777 215 with 1e4.67).
-/// We use 1e4 scaling: 180*10000 = 1 800 000 ✓  (fits 3 bytes).
-const double kGpsScale = 10000.0;
+/// Scale factor for compressing lat/lon into signed int32 (4 bytes each).
+/// int32 = value × 1e7 → ~1 cm precision.  Range ±2 147 483 647 covers
+/// ±214.7° which exceeds the ±180° needed for longitude.
+const double kGpsScale = 10000000.0;
 
 // ---------------------------------------------------------------------------
 // Network / Backend
@@ -92,6 +91,9 @@ const String kApiSosIngest = '/sos/ingest';
 
 /// Endpoint: acknowledge an SOS event.
 const String kApiSosAck = '/sos/acknowledge';
+
+/// Endpoint: fetch currently active SOS events.
+const String kApiSosActive = '/sos/active';
 
 // ---------------------------------------------------------------------------
 // Local Database
@@ -116,5 +118,8 @@ const String kForegroundNotifBody =
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Pre-built empty 11-byte packet (useful for comparisons).
+/// Size of the 20-byte CORE SOS packet.
+const int kCorePacketSize = 20;
+
+/// Pre-built empty fragment packet (useful for comparisons).
 final Uint8List kEmptyPacket = Uint8List(kBlePacketSize);

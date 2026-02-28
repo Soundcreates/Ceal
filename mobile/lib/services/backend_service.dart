@@ -82,17 +82,20 @@ class BackendService {
 
   /// Get current active SOS events from the backend.
   Future<List<SosEvent>> fetchActiveEvents() async {
-    final url = Uri.parse('$_baseUrl/sos/active');
+    final url = Uri.parse('$_baseUrl$kApiSosActive');
     try {
       final response = await _client
           .get(url, headers: _headers)
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final List<dynamic> body = jsonDecode(response.body) as List<dynamic>;
-        return body
-            .map((e) => SosEvent.fromJson(e as Map<String, dynamic>))
-            .toList();
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded
+              .whereType<Map<String, dynamic>>()
+              .map((e) => SosEvent.fromJson(e))
+              .toList();
+        }
       }
     } catch (e) {
       debugPrint('[BackendService] Fetch active events error: $e');

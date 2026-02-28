@@ -23,7 +23,12 @@ class MeshRelayService {
     required this.advertiser,
     required this.backendService,
     required this.queueService,
-  });
+  }) {
+    _flushTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => flushQueue(),
+    );
+  }
 
   final BleAdvertiserService advertiser;
   final BackendService backendService;
@@ -34,6 +39,9 @@ class MeshRelayService {
 
   /// Pending relay timers (so we can cancel on dispose).
   final List<Timer> _pendingTimers = [];
+
+  /// Periodic queue-flush timer.
+  late final Timer _flushTimer;
 
   final Random _rng = Random();
 
@@ -126,6 +134,7 @@ class MeshRelayService {
   // -------------------------------------------------------------------------
 
   void dispose() {
+    _flushTimer.cancel();
     for (final t in _pendingTimers) {
       t.cancel();
     }

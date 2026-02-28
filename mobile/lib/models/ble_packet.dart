@@ -1,11 +1,11 @@
-/// BLE packet model — the 11-byte unit of the SOS mesh protocol.
+/// BLE fragment packet model — the 13-byte unit of the SOS mesh protocol.
 ///
 /// Layout:
 /// ```
-///  Byte 0     : sequence number  (0–255)
-///  Byte 1     : total chunks     (1–255)
-///  Byte 2     : flags            (see [constants.dart])
-///  Bytes 3-10 : payload          (8 bytes)
+///  Byte 0      : sequence number  (0–255)
+///  Byte 1      : total chunks     (1–255)
+///  Byte 2      : flags            (see [constants.dart])
+///  Bytes 3-12  : payload          (10 bytes)
 /// ```
 library;
 
@@ -35,7 +35,7 @@ class BlePacket {
   /// TTL (bits 4-7, decremented per relay hop, max 15).
   final int flags;
 
-  /// 8-byte payload fragment.
+  /// 10-byte payload fragment.
   final Uint8List payload;
 
   // -------------------------------------------------------------------------
@@ -51,7 +51,7 @@ class BlePacket {
   // Serialisation (to/from raw bytes)
   // -------------------------------------------------------------------------
 
-  /// Encode this packet into an 11-byte [Uint8List].
+  /// Encode this packet into a 13-byte [Uint8List].
   Uint8List toBytes() {
     final bytes = Uint8List(kBlePacketSize);
     bytes[0] = sequence & 0xFF;
@@ -61,7 +61,7 @@ class BlePacket {
     return bytes;
   }
 
-  /// Decode an 11-byte [Uint8List] into a [BlePacket].
+  /// Decode a 13-byte [Uint8List] into a [BlePacket].
   factory BlePacket.fromBytes(Uint8List raw) {
     if (raw.length < kBlePacketSize) {
       throw ArgumentError('Packet too short: ${raw.length} bytes');

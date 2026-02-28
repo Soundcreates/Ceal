@@ -1,12 +1,22 @@
 import 'dart:async';
-import 'dart:io';
 
+import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/features/alerts/alert_list_screen.dart';
+import 'package:aftermath/features/alerts/alerts_notifier.dart';
+import 'package:aftermath/features/onboarding/permission_screen.dart';
+import 'package:aftermath/features/onboarding/welcome_screen.dart';
+import 'package:aftermath/features/settings/settings_screen.dart';
+import 'package:aftermath/features/sos/sos_screen.dart';
+import 'package:aftermath/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-void main() {
-  runApp(const MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -15,65 +25,79 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Volume Trigger Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      ),
-      home: const MyHomePage(),
+      title: 'AfterMath',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      routes: {
+        '/alerts': (_) => const AlertListScreen(),
+        '/settings': (_) => const SettingsScreen(),
+      },
+      home: const AppBootstrapScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
+enum _OnboardingStep {
+  welcome,
+  permissions,
+  home,
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class AppBootstrapScreen extends ConsumerStatefulWidget {
+  const AppBootstrapScreen({super.key});
+
+  @override
+  ConsumerState<AppBootstrapScreen> createState() => _AppBootstrapScreenState();
+}
+
+class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
   static const EventChannel _volumeEventChannel = EventChannel(
     'volume_trigger/events',
   );
 
   StreamSubscription<dynamic>? _volumeSubscription;
-  int _doublePressCount = 0;
+  _OnboardingStep _step = _OnboardingStep.welcome;
 
   @override
   void initState() {
     super.initState();
-
-    if (Platform.isAndroid) {
-      _volumeSubscription = _volumeEventChannel.receiveBroadcastStream().listen(
-        _onVolumeEvent,
-        onError: _onVolumeError,
-      );
-    }
+    _initServices();
+    _listenVolumeEvents();
   }
 
-  void _onVolumeEvent(dynamic event) {
-    if (!mounted) return;
+  Future<void> _initServices() async {
+    final settings = ref.read(settingsServiceProvider);
+    await settings.init();
 
-    if (event == 'double_volume_up') {
-      setState(() {
-        _doublePressCount++;
-      });
+    final sms = ref.read(smsFallbackProvider);
+    sms.emergencyContacts = await settings.loadContacts();
+    sms.enabled = await settings.isSmsEnabled();
 
+    final scanner = ref.read(bleScannerProvider);
+    final reassembler = ref.read(packetReassemblerProvider);
+    final relay = ref.read(meshRelayProvider);
+    final alerts = ref.read(alertsNotifierProvider.notifier);
+
+    scanner.onPacketReceived = reassembler.addPacket;
+    scanner.onCorePacketReceived = reassembler.addCorePacket;
+
+    reassembler.onSosReassembled = (event, deviceId) {
+      relay.onSosReceived(event, deviceId);
+      alerts.addAlert(event);
+    };
+
+    ref.read(foregroundServiceProvider).init();
+  }
+
+  void _listenVolumeEvents() {
+    _volumeSubscription = _volumeEventChannel
+        .receiveBroadcastStream()
+        .listen((dynamic event) {
+      if (!mounted || event != 'double_volume_up') return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Volume Up pressed twice'),
-          duration: Duration(seconds: 2),
-        ),
+        const SnackBar(content: Text('Double volume-up detected')),
       );
-    }
-  }
-
-  void _onVolumeError(dynamic error) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Volume trigger error: $error')));
+    });
   }
 
   @override
@@ -84,25 +108,21 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Volume Trigger Demo')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Double press the volume-up hardware button to trigger a UI notification.',
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Make sure Accessibility Service is enabled for this app in Android settings.',
-            ),
-            const SizedBox(height: 24),
-            Text('Detected double presses: $_doublePressCount'),
-          ],
-        ),
-      ),
-    );
+    switch (_step) {
+      case _OnboardingStep.welcome:
+        return WelcomeScreen(
+          onGetStarted: () {
+            setState(() => _step = _OnboardingStep.permissions);
+          },
+        );
+      case _OnboardingStep.permissions:
+        return PermissionScreen(
+          onComplete: () {
+            setState(() => _step = _OnboardingStep.home);
+          },
+        );
+      case _OnboardingStep.home:
+        return const SosScreen();
+    }
   }
 }

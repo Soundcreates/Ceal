@@ -17,6 +17,9 @@ class SmsFallbackService {
   /// Emergency contacts to notify.
   List<EmergencyContact> emergencyContacts = [];
 
+  /// Whether SMS fallback is enabled by the user.
+  bool enabled = true;
+
   // -------------------------------------------------------------------------
   // API
   // -------------------------------------------------------------------------
@@ -25,6 +28,10 @@ class SmsFallbackService {
   ///
   /// Returns the number of messages successfully dispatched.
   Future<int> sendSos(SosEvent event) async {
+    if (!enabled) {
+      debugPrint('[SmsFallbackService] SMS fallback is disabled.');
+      return 0;
+    }
     if (emergencyContacts.isEmpty) {
       debugPrint('[SmsFallbackService] No emergency contacts configured.');
       return 0;

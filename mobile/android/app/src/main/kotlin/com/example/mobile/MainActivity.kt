@@ -5,9 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.telephony.SmsManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var eventSink: EventChannel.EventSink? = null
@@ -33,8 +35,38 @@ class MainActivity : FlutterActivity() {
                     override fun onCancel(arguments: Any?) {
                         eventSink = null
                     }
-                }
+                },
             )
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SMS_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "sendSms" -> {
+                    val phone = call.argument<String>("phone")
+                    val message = call.argument<String>("message")
+                    if (phone == null || message == null) {
+                        result.error("INVALID_ARGS", "phone and message are required", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        val smsManager = SmsManager.getDefault()
+                        // Split long messages into parts.
+                        val parts = smsManager.divideMessage(message)
+                        if (parts.size == 1) {
+                            smsManager.sendTextMessage(phone, null, message, null, null)
+                        } else {
+                            smsManager.sendMultipartTextMessage(phone, null, parts, null, null)
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SMS_FAILED", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     override fun onStart() {
@@ -59,5 +91,6 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL_NAME = "volume_trigger/events"
+        private const val SMS_CHANNEL = "com.aftermath.sos/sms"
     }
 }

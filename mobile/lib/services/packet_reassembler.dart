@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/models/ble_packet.dart';
+import 'package:aftermath/models/core_sos_packet.dart';
 import 'package:aftermath/models/sos_event.dart';
 
 /// Callback when a full SOS event has been reassembled.
@@ -36,6 +37,36 @@ class PacketReassembler {
   // -------------------------------------------------------------------------
   // API
   // -------------------------------------------------------------------------
+
+  /// Feed a 20-byte CORE SOS packet directly (no reassembly needed).
+  ///
+  /// Applies deduplication and immediately fires [onSosReassembled].
+  void addCorePacket(CoreSosPacket packet, String deviceId) {
+    final dedupKey =
+        'core:${packet.deviceId}:${packet.latitude}:${packet.longitude}';
+
+    if (_seenIds.contains(dedupKey)) {
+      debugPrint('[PacketReassembler] Duplicate CORE $dedupKey, skipping.');
+      return;
+    }
+    _seenIds.add(dedupKey);
+    Timer(kDeduplicationWindow, () => _seenIds.remove(dedupKey));
+
+    final hash = packet.deviceId & 0xFFFF;
+    final event = SosEvent(
+      id: dedupKey,
+      deviceIdHash: Uint8List.fromList([(hash >> 8) & 0xFF, hash & 0xFF]),
+      latitude: packet.latitude,
+      longitude: packet.longitude,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(
+        packet.timestamp * 1000,
+        isUtc: true,
+      ),
+    );
+
+    debugPrint('[PacketReassembler] CORE SOS decoded: $event');
+    onSosReassembled?.call(event, deviceId);
+  }
 
   /// Feed a new [packet] from [deviceId] into the reassembly buffer.
   void addPacket(BlePacket packet, String deviceId) {

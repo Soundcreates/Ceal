@@ -1,7 +1,7 @@
 /// BLE Advertiser Service — broadcasts SOS packets via BLE advertising.
 ///
-/// Uses [flutter_ble_peripheral] to emit manufacturer-specific data containing
-/// the 11-byte SOS packet fragments.
+/// Uses [flutter_ble_peripheral] to emit manufacturer-specific data.
+/// Supports both the 20-byte CORE SOS packet and 13-byte fragment packets.
 ///
 /// On iOS, BLE advertisement data must be attached to a GATT characteristic
 /// rather than manufacturer data, because iOS hides manufacturer bytes when
@@ -16,6 +16,7 @@ import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/models/ble_packet.dart';
+import 'package:aftermath/models/core_sos_packet.dart';
 import 'package:aftermath/models/sos_event.dart';
 
 class BleAdvertiserService {
@@ -28,7 +29,30 @@ class BleAdvertiserService {
   // High-level API
   // -------------------------------------------------------------------------
 
-  /// Broadcast a full [SosEvent] by chunking its compact payload into 11-byte
+  /// Broadcast a 20-byte CORE SOS packet.
+  ///
+  /// The CORE packet is self-contained (no fragmentation needed) and is
+  /// burst-repeated [kAdvertiseBurstCount] times.
+  Future<void> broadcastCoreSos(CoreSosPacket packet) async {
+    debugPrint(
+      '[BleAdvertiserService] Broadcasting CORE SOS packet '
+      '(deviceId=${packet.deviceId}).',
+    );
+
+    final raw = packet.toBytes();
+    for (int burst = 0; burst < kAdvertiseBurstCount; burst++) {
+      await _advertiseRawBytes(raw);
+      await Future<void>.delayed(kChunkDelay);
+      if (burst < kAdvertiseBurstCount - 1) {
+        await Future<void>.delayed(kBurstInterval);
+      }
+    }
+
+    await stopAdvertising();
+    debugPrint('[BleAdvertiserService] CORE broadcast complete.');
+  }
+
+  /// Broadcast a full [SosEvent] by chunking its compact payload into 13-byte
   /// BLE packets and advertising each fragment in sequence.
   ///
   /// The advertisement is burst-repeated [kAdvertiseBurstCount] times to
@@ -117,8 +141,11 @@ class BleAdvertiserService {
   // -------------------------------------------------------------------------
 
   Future<void> _advertisePacket(BlePacket packet) async {
-    final raw = packet.toBytes();
+    await _advertiseRawBytes(packet.toBytes());
+  }
 
+  /// Advertise an arbitrary raw byte buffer (CORE packet or fragment).
+  Future<void> _advertiseRawBytes(Uint8List raw) async {
     final advertiseData = AdvertiseData(
       serviceUuid: kSosServiceUuid,
       manufacturerId: kManufacturerId,

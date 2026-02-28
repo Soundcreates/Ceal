@@ -49,6 +49,9 @@ dependencies:
   # Environment variables (.env file)
   flutter_dotenv: ^5.2.1
 
+  # Secure persistent storage for device UUID
+  flutter_secure_storage: ^9.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

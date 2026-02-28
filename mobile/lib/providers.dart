@@ -2,6 +2,8 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:aftermath/core/encryption.dart';
 import 'package:aftermath/core/env.dart';
@@ -14,6 +16,7 @@ import 'package:aftermath/services/location_service.dart';
 import 'package:aftermath/services/mesh_relay_service.dart';
 import 'package:aftermath/services/packet_reassembler.dart';
 import 'package:aftermath/services/queue_service.dart';
+import 'package:aftermath/services/settings_service.dart';
 import 'package:aftermath/services/sms_fallback_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -77,6 +80,24 @@ final foregroundServiceProvider = Provider<ForegroundService>((ref) {
   return ForegroundService();
 });
 
+final settingsServiceProvider = Provider<SettingsService>((ref) {
+  final svc = SettingsService();
+  ref.onDispose(() => svc.dispose());
+  return svc;
+});
+
 final smsFallbackProvider = Provider<SmsFallbackService>((ref) {
   return SmsFallbackService();
+});
+
+/// Persistent device UUID stored in secure storage.
+final deviceUuidProvider = FutureProvider<String>((ref) async {
+  const storage = FlutterSecureStorage();
+  const key = 'aftermath_device_uuid';
+  var uuid = await storage.read(key: key);
+  if (uuid == null) {
+    uuid = const Uuid().v4();
+    await storage.write(key: key, value: uuid);
+  }
+  return uuid;
 });
