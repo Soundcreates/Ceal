@@ -23,12 +23,16 @@ export class UserRepository {
 
   /**
    * Create a new user from signup data. Returns the created user.
-   * BLE UID is generated server-side (deterministic from userId + secret).
+   * If the caller provides `data.bleUid` (device-generated, 12 hex chars),
+   * that UID is used verbatim so the device's BLE broadcast matches the DB.
+   * Otherwise the server generates a deterministic UID from userId + secret.
    * Throws on duplicate phone or BLE UID (unique constraint violation).
    */
   async create(data: SignupPayload): Promise<User> {
     const id = randomUUID();
-    const bleUid = generateBleUid(id);
+    const bleUid = data.bleUid
+      ? Buffer.from(data.bleUid, 'hex')
+      : generateBleUid(id);
     const { rows } = await this.pool.query(
       `INSERT INTO users (id, name, phone, ble_uid, language)
        VALUES ($1, $2, $3, $4, $5)
