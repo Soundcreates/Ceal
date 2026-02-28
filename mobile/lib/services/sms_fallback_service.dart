@@ -44,7 +44,7 @@ class SmsFallbackService {
         : '';
 
     final buf = StringBuffer();
-    buf.writeln('EMERGENCY SOS — AfterMath');
+    buf.writeln('EMERGENCY SOS — CEAL');
     if (victimInfo != null && victimInfo.isNotEmpty) {
       buf.writeln(victimInfo);
     }

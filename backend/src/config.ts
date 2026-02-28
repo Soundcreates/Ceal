@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Environment configuration.
+ * CEAL Backend — Environment configuration.
  *
  * Validates all required env vars at startup via Zod.
  */
@@ -20,7 +20,7 @@ const envSchema = z.object({
   BLE_ENCRYPTION_SECRET: z.string().min(16),
 
   // Server secret for deterministic BLE UID generation
-  SERVER_SECRET: z.string().min(16).default('aftermath-default-server-secret-change-me'),
+  SERVER_SECRET: z.string().min(16).default('ceal-default-server-secret-change-me'),
 
   // Twilio
   TWILIO_ACCOUNT_SID: z.string().startsWith('AC'),

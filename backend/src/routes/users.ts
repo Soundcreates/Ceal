@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — User onboarding routes.
+ * CEAL Backend — User onboarding routes.
  *
  * POST /users              — Create a new user (generates static BLE UID)
  * GET  /users/:id          — Fetch user profile (no raw ble_uid)

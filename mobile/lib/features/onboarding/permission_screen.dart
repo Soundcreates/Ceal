@@ -56,7 +56,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'AfterMath needs the following permissions to send and '
+                'CEAL needs the following permissions to send and '
                 'receive emergency alerts.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(

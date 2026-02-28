@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Aadhaar Zero-Knowledge Verification Service.
+ * CEAL Backend — Aadhaar Zero-Knowledge Verification Service.
  *
  * Uses @anon-aadhaar/core to verify ZK-SNARK proofs generated from
  * Aadhaar QR code scans on the mobile app.

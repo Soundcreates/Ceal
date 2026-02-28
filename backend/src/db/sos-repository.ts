@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — SOS Events data-access layer (V2 protocol).
+ * CEAL Backend — SOS Events data-access layer (V2 protocol).
  */
 
 import type { Pool as PgPool } from 'pg';

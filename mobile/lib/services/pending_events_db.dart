@@ -22,6 +22,7 @@ class PendingEvent {
     required this.receiverLon,
     required this.rssi,
     required this.timestamp,
+    this.relayHops = 0,
     this.sentToBackend = false,
     this.smsSent = false,
     this.lastAttemptAt,
@@ -35,6 +36,7 @@ class PendingEvent {
   final double receiverLon;
   final int rssi;
   final int timestamp; // millis since epoch
+  int relayHops;
   bool sentToBackend;
   bool smsSent;
   int? lastAttemptAt;
@@ -48,6 +50,7 @@ class PendingEvent {
         'receiver_lon': receiverLon,
         'rssi': rssi,
         'timestamp': timestamp,
+        'relay_hops': relayHops,
         'sent_to_backend': sentToBackend ? 1 : 0,
         'sms_sent': smsSent ? 1 : 0,
         'last_attempt_at': lastAttemptAt,
@@ -62,6 +65,7 @@ class PendingEvent {
         receiverLon: (row['receiver_lon'] as num).toDouble(),
         rssi: row['rssi'] as int,
         timestamp: row['timestamp'] as int,
+        relayHops: (row['relay_hops'] as int?) ?? 0,
         sentToBackend: (row['sent_to_backend'] as int) == 1,
         smsSent: (row['sms_sent'] as int) == 1,
         lastAttemptAt: row['last_attempt_at'] as int?,
@@ -81,7 +85,7 @@ class PendingEventsDb {
     final dbPath = await getDatabasesPath();
     _db = await openDatabase(
       p.join(dbPath, _dbName),
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE $_table (
@@ -93,6 +97,7 @@ class PendingEventsDb {
             receiver_lon REAL NOT NULL DEFAULT 0.0,
             rssi INTEGER NOT NULL DEFAULT 0,
             timestamp INTEGER NOT NULL,
+            relay_hops INTEGER NOT NULL DEFAULT 0,
             sent_to_backend INTEGER NOT NULL DEFAULT 0,
             sms_sent INTEGER NOT NULL DEFAULT 0,
             last_attempt_at INTEGER
@@ -104,6 +109,13 @@ class PendingEventsDb {
         await db.execute(
           'CREATE INDEX idx_pending_sms ON $_table (sms_sent)',
         );
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE $_table ADD COLUMN relay_hops INTEGER NOT NULL DEFAULT 0',
+          );
+        }
       },
     );
 

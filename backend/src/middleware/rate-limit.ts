@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Rate limiting middleware.
+ * CEAL Backend — Rate limiting middleware.
  */
 
 import rateLimit from 'express-rate-limit';

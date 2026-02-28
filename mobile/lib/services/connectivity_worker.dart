@@ -134,6 +134,7 @@ class ConnectivityWorker {
       flags: pe.flags,
       sequence: pe.sequence,
       timestamp: DateTime.fromMillisecondsSinceEpoch(pe.timestamp, isUtc: true),
+      relayHops: pe.relayHops,
       receiverLocation: ReceiverLocation(lat: pe.receiverLat, lon: pe.receiverLon),
       rssi: pe.rssi,
     );
