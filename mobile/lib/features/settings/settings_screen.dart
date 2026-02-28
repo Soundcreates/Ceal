@@ -15,7 +15,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _scanningEnabled = false;
   bool _smsFallbackEnabled = true;
 
   final _contactNameCtrl = TextEditingController();
@@ -69,28 +68,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ------ BLE Section ------
+          // ------ BLE Section (always-on) ------
           Text('Bluetooth',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          SwitchListTile(
-            title: const Text('Background Scanning'),
-            subtitle:
-                const Text('Listen for nearby SOS alerts in the background.'),
-            value: _scanningEnabled,
-            onChanged: (val) async {
-              setState(() => _scanningEnabled = val);
-              final scanner = ref.read(bleScannerProvider);
-              if (val) {
-                await scanner.startScanning();
-                final fg = ref.read(foregroundServiceProvider);
-                await fg.start();
-              } else {
-                await scanner.stopScanning();
-                final fg = ref.read(foregroundServiceProvider);
-                await fg.stop();
-              }
-            },
+          const ListTile(
+            leading: Icon(Icons.bluetooth_searching, color: Colors.blue),
+            title: Text('Background Scanning'),
+            subtitle: Text('Always on — listening for nearby SOS alerts 24/7.'),
+            trailing: Icon(Icons.check_circle, color: Colors.green),
           ),
           const Divider(height: 32),
 

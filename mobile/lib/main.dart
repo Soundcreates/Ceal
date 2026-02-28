@@ -66,6 +66,7 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
     _listenVolumeEvents();
   }
 
+  /// Wire up the always-on BLE SOS relay + auto-escalation pipeline.
   Future<void> _initServices() async {
     final settings = ref.read(settingsServiceProvider);
     await settings.init();
@@ -74,6 +75,7 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
     sms.emergencyContacts = await settings.loadContacts();
     sms.enabled = await settings.isSmsEnabled();
 
+    // Legacy pipeline (kept for manual SOS trigger from UI):
     final scanner = ref.read(bleScannerProvider);
     final reassembler = ref.read(packetReassemblerProvider);
     final relay = ref.read(meshRelayProvider);
@@ -86,6 +88,15 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
     };
 
     ref.read(foregroundServiceProvider).init();
+    // Always-on background relay — wire alerts notifier.
+    final bgRelay = ref.read(backgroundRelayProvider);
+    bgRelay.alertsNotifier = alerts;
+
+    // Start foreground service (Android persistent notification).
+    await ref.read(foregroundServiceProvider).init();
+
+    // Start always-on BLE scanning + auto-escalation.
+    await bgRelay.start();
   }
 
   void _listenVolumeEvents() {

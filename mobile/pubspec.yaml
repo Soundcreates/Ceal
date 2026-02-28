@@ -56,6 +56,9 @@ dependencies:
   # Secure persistent storage for device UUID
   flutter_secure_storage: ^9.2.2
 
+  # Connectivity monitoring for offline-first queue drain
+  connectivity_plus: ^6.1.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
