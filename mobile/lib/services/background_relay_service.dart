@@ -207,6 +207,7 @@ class BackgroundRelayService {
     await notificationService.showSosDetected(
       pe,
       victimProfile: victimProfile,
+      rssi: rssi,
     );
 
     // 8. IMMEDIATELY ingest to backend (triggers Twilio SMS to contacts).

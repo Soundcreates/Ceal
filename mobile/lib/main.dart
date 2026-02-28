@@ -12,6 +12,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/features/alerts/alert_list_screen.dart';
 import 'package:aftermath/features/alerts/alerts_notifier.dart';
+import 'package:aftermath/features/alerts/victim_detail_popup.dart';
 import 'package:aftermath/features/onboarding/aadhaar_qr_screen.dart';
 import 'package:aftermath/features/onboarding/manual_kyc_form_screen.dart';
 import 'package:aftermath/features/onboarding/permission_screen.dart';
@@ -28,6 +29,10 @@ Future<void> main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
+/// Global navigator key so services (e.g. notification taps) can show dialogs
+/// without requiring a widget-tree [BuildContext].
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -35,6 +40,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'AfterMath',
+      navigatorKey: navigatorKey,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       routes: {
@@ -61,6 +67,7 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
   );
 
   StreamSubscription<dynamic>? _volumeSubscription;
+  StreamSubscription<Map<String, dynamic>>? _notifTapSubscription;
   _OnboardingStep _step = _OnboardingStep.welcome;
   bool _isInitializing = true;
 
@@ -112,6 +119,15 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
 
     // Start always-on BLE scanning + auto-escalation.
     await bgRelay.start();
+
+    // Listen for notification body taps → show victim-detail popup.
+    final notifService = ref.read(sosNotificationServiceProvider);
+    _notifTapSubscription = notifService.onNotificationTap.listen((data) {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        showVictimDetailPopup(ctx, VictimDetailData.fromJsonMap(data));
+      }
+    });
   }
 
   void _listenVolumeEvents() {
@@ -134,6 +150,7 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
   @override
   void dispose() {
     _volumeSubscription?.cancel();
+    _notifTapSubscription?.cancel();
     super.dispose();
   }
 
