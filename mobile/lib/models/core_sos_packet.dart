@@ -15,12 +15,14 @@ class CoreSosPacket {
     required this.flags,
     required this.bleUid,
     required this.sequence,
+    this.ttl = kDefaultTtl,
   });
 
   final int version;
   final int flags;
   final Uint8List bleUid;
   final int sequence;
+  final int ttl;
 
   bool get isSosActive => (flags & 0x01) != 0;
   bool get isMedicalEmergency => (flags & 0x02) != 0;
@@ -31,6 +33,9 @@ class CoreSosPacket {
   String get bleUidHex =>
       bleUid.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
+  /// Number of relay hops this packet has traveled (kDefaultTtl - ttl).
+  int get relayHops => (kDefaultTtl - ttl).clamp(0, kDefaultTtl);
+
   Uint8List toBytes() {
     final buf = Uint8List(kCorePacketSize);
     buf[0] = version & 0xFF;
@@ -39,7 +44,8 @@ class CoreSosPacket {
       buf[2 + i] = i < bleUid.length ? bleUid[i] : 0;
     }
     buf[8] = sequence & 0xFF;
-    buf[9] = computeCrc8(Uint8List.fromList(buf.sublist(0, 9)));
+    buf[9] = ttl.clamp(0, 255) & 0xFF;
+    buf[10] = computeCrc8(Uint8List.fromList(buf.sublist(0, 10)));
     return buf;
   }
 
@@ -59,6 +65,7 @@ class CoreSosPacket {
       flags: raw[1],
       bleUid: Uint8List.fromList(raw.sublist(2, 2 + kBleUidSize)),
       sequence: raw[8],
+      ttl: raw[9],
     );
   }
 
@@ -78,6 +85,6 @@ class CoreSosPacket {
   @override
   String toString() {
     return 'CoreSosPacket(v$version, flags=0x${flags.toRadixString(16)}, '
-        'uid=$bleUidHex, seq=$sequence)';
+        'uid=$bleUidHex, seq=$sequence, ttl=$ttl, hops=$relayHops)';
   }
 }

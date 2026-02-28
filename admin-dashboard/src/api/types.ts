@@ -41,8 +41,8 @@ export interface EmergencyContact {
 
 export interface MedicalProfile {
   bloodGroup: string | null;
-  allergies: string[] | null;
-  conditions: string[] | null;
+  allergies: string | string[] | null;
+  conditions: string | string[] | null;
 }
 
 export interface VictimProfile {

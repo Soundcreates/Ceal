@@ -20,17 +20,18 @@ class BleAdvertiserService {
 
     // Full hex dump + field breakdown so every broadcast is traceable.
     final hexDump = raw.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
-    // CORE V2 layout: [version(0)] [flags(1)] [bleUid(2..7)] [seq(8)] [crc8(9)]
+    // CORE V2 layout: [version(0)] [flags(1)] [bleUid(2..7)] [seq(8)] [ttl(9)] [crc8(10)]
     final version = raw.isNotEmpty ? '0x${raw[0].toRadixString(16).padLeft(2, '0')}' : '??';
     final flags   = raw.length > 1 ? '0x${raw[1].toRadixString(16).padLeft(2, '0')}' : '??';
     final uidHex  = raw.length >= 8
         ? raw.sublist(2, 8).map((b) => b.toRadixString(16).padLeft(2, '0')).join(':')
         : '??';
     final seq  = raw.length > 8 ? raw[8] : -1;
-    final crc8 = raw.length > 9 ? '0x${raw[9].toRadixString(16).padLeft(2, '0')}' : '??';
+    final ttl  = raw.length > 9 ? raw[9] : -1;
+    final crc8 = raw.length > 10 ? '0x${raw[10].toRadixString(16).padLeft(2, '0')}' : '??';
     debugPrint(
       '[BleAdvertiserService] BEGIN CORE V2 broadcast | '
-      'len=${raw.length} ver=$version flags=$flags uid=$uidHex seq=$seq crc8=$crc8 | '
+      'len=${raw.length} ver=$version flags=$flags uid=$uidHex seq=$seq ttl=$ttl crc8=$crc8 | '
       'hex: $hexDump',
     );
 

@@ -130,9 +130,9 @@ const String kForegroundNotifBody =
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Size of the 10-byte CORE SOS V2 packet.
-/// Layout: version(1) + flags(1) + bleUid(6) + sequence(1) + CRC8(1) = 10.
-const int kCorePacketSize = 10;
+/// Size of the 11-byte CORE SOS V2 packet.
+/// Layout: version(1) + flags(1) + bleUid(6) + sequence(1) + ttl(1) + CRC8(1) = 11.
+const int kCorePacketSize = 11;
 
 /// Pre-built empty fragment packet (useful for comparisons).
 final Uint8List kEmptyPacket = Uint8List(kBlePacketSize);

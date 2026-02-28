@@ -83,12 +83,12 @@ function AlertCard({
               )}
               {vp.medical.allergies && vp.medical.allergies.length > 0 && (
                 <div className="sos-alert-card__field">
-                  Allergies: {vp.medical.allergies.join(', ')}
+                  Allergies: {Array.isArray(vp.medical.allergies) ? vp.medical.allergies.join(', ') : vp.medical.allergies}
                 </div>
               )}
               {vp.medical.conditions && vp.medical.conditions.length > 0 && (
                 <div className="sos-alert-card__field">
-                  Conditions: {vp.medical.conditions.join(', ')}
+                  Conditions: {Array.isArray(vp.medical.conditions) ? vp.medical.conditions.join(', ') : vp.medical.conditions}
                 </div>
               )}
             </div>

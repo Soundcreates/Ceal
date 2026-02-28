@@ -85,11 +85,19 @@ export default function UserDetail() {
               <Field label="Blood Group" value={medical.bloodGroup ?? '—'} />
               <Field
                 label="Allergies"
-                value={medical.allergies?.length ? medical.allergies.join(', ') : 'None reported'}
+                value={medical.allergies
+                  ? Array.isArray(medical.allergies)
+                    ? medical.allergies.join(', ')
+                    : String(medical.allergies)
+                  : 'None reported'}
               />
               <Field
                 label="Conditions"
-                value={medical.conditions?.length ? medical.conditions.join(', ') : 'None reported'}
+                value={medical.conditions
+                  ? Array.isArray(medical.conditions)
+                    ? medical.conditions.join(', ')
+                    : String(medical.conditions)
+                  : 'None reported'}
               />
             </>
           ) : (

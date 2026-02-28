@@ -169,11 +169,19 @@ export default function EventDetail() {
                   <Field label="Blood Group" value={vp.medical.bloodGroup ?? '—'} />
                   <Field
                     label="Allergies"
-                    value={vp.medical.allergies?.length ? vp.medical.allergies.join(', ') : 'None'}
+                    value={vp.medical.allergies
+                      ? Array.isArray(vp.medical.allergies)
+                        ? vp.medical.allergies.join(', ')
+                        : String(vp.medical.allergies)
+                      : 'None'}
                   />
                   <Field
                     label="Conditions"
-                    value={vp.medical.conditions?.length ? vp.medical.conditions.join(', ') : 'None'}
+                    value={vp.medical.conditions
+                      ? Array.isArray(vp.medical.conditions)
+                        ? vp.medical.conditions.join(', ')
+                        : String(vp.medical.conditions)
+                      : 'None'}
                   />
                 </>
               ) : (
