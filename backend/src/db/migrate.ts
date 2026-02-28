@@ -33,14 +33,6 @@ CREATE TABLE sos_events (
 `;
 
 const CREATE_UPDATED_AT_TRIGGER = `
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ language 'plpgsql';
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -186,6 +178,17 @@ async function migrate(): Promise<void> {
 
   try {
     console.log('Running migrations...');
+
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION update_updated_at_column()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+      END;
+      $$ language 'plpgsql';
+    `);
+    console.log('  ✅ update_updated_at function');
 
     // User identity tables must be created before sos_events (FK dependency)
     await pool.query(CREATE_USERS);
