@@ -226,10 +226,13 @@ class BackgroundRelayService {
       debugPrint('[BackgroundRelay] Backend ingest failed (will retry): $e');
     }
 
-    // 9. Attempt immediate SMS from device (Android) as belt-and-suspenders.
-    if (kAutoSmsEnabled && Platform.isAndroid) {
-      debugPrint('[BackgroundRelay] Attempting device SMS fallback for ${pe.id}');
-      await _sendSmsSafe(pe);
+    // 9. Send SMS directly from device (Android) to victim's emergency contacts
+    //    + escalation operator.  The relayer's phone acts as a modem — no user
+    //    confirmation, always automatic.  The victim's real-time GPS location
+    //    (captured in step 1) is embedded in every message.
+    if (Platform.isAndroid) {
+      debugPrint('[BackgroundRelay] Sending device SMS for ${pe.id}');
+      await _sendSmsSafe(pe, victimProfile: victimProfile);
     }
 
     // 10. Drain any other pending events in the queue.
@@ -240,58 +243,117 @@ class BackgroundRelayService {
   }
 
   // ---------------------------------------------------------------------------
-  // SMS
+  // Device SMS (relayer as modem)
   // ---------------------------------------------------------------------------
 
-  Future<void> _sendSmsSafe(PendingEvent pe) async {
+  /// Sends SMS directly from the relayer's device to:
+  ///   1. Every emergency contact registered in the victim's profile.
+  ///   2. The configured escalation operator number.
+  ///   3. Falls back to [kSmsDemoNumber] only if no profile is available.
+  ///
+  /// The relayer's real-time GPS position (already in [pe.receiverLat/Lon])
+  /// is embedded in every message — this location is NOT in the original BLE
+  /// packet and is critical for responders.
+  Future<void> _sendSmsSafe(PendingEvent pe, {VictimProfile? victimProfile}) async {
+    // --- Build recipient list -------------------------------------------
+    final List<EmergencyContact> contacts = [];
+
+    if (victimProfile != null && victimProfile.contacts.isNotEmpty) {
+      // Victim's registered emergency contacts (sorted by priority).
+      for (final c in victimProfile.contacts) {
+        final phone = c.phone;
+        if (phone != null && phone.isNotEmpty) {
+          contacts.add(EmergencyContact(
+            name: c.name ?? 'Emergency Contact',
+            phone: phone,
+          ));
+        }
+      }
+    }
+
+    // Escalation operator always gets a direct device copy.
+    if (kEscalationPhone.isNotEmpty) {
+      contacts.add(EmergencyContact(
+        name: 'Emergency Operator',
+        phone: kEscalationPhone,
+      ));
+    }
+
+    // Last resort: no profile and no escalation number configured.
+    if (contacts.isEmpty) {
+      kSmsDemoNumber
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .forEach((n) => contacts.add(EmergencyContact(name: 'SOS Alert', phone: n)));
+    }
+
+    if (contacts.isEmpty) {
+      debugPrint('[BackgroundRelay] Device SMS: no valid targets for ${pe.id}');
+      return;
+    }
+
+    // --- Build victim info line for message body -----------------------
+    String? victimInfo;
+    if (victimProfile != null) {
+      final parts = <String>[];
+      if (victimProfile.name?.isNotEmpty ?? false) {
+        parts.add('Victim: ${victimProfile.name}');
+      }
+      if (victimProfile.phone?.isNotEmpty ?? false) {
+        parts.add('Phone: ${victimProfile.phone}');
+      }
+      final blood = victimProfile.medical?.bloodGroup;
+      if (blood?.isNotEmpty ?? false) { parts.add('Blood group: $blood'); }
+      final allergies = victimProfile.medical?.allergies;
+      if (allergies?.isNotEmpty ?? false) { parts.add('Allergies: $allergies'); }
+      final conditions = victimProfile.medical?.conditions;
+      if (conditions?.isNotEmpty ?? false) { parts.add('Conditions: $conditions'); }
+      if (parts.isNotEmpty) { victimInfo = parts.join('\n'); }
+    }
+
+    debugPrint(
+      '[BackgroundRelay] Device SMS for ${pe.id} | '
+      'recipients=${contacts.length} '
+      'numbers=[${contacts.map((c) => c.phone).join(', ')}]',
+    );
+
+    // --- Build SosEvent for SmsFallbackService -------------------------
+    final event = SosEvent(
+      id: pe.id,
+      bleUid: Uint8List(6),
+      flags: pe.flags,
+      sequence: pe.sequence,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(pe.timestamp, isUtc: true),
+      receiverLocation: ReceiverLocation(lat: pe.receiverLat, lon: pe.receiverLon),
+    );
+
+    // --- Retry loop ----------------------------------------------------
     for (int attempt = 0; attempt < kSmsMaxRetries; attempt++) {
       try {
-        final targets = kSmsDemoNumber
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
         debugPrint(
-          '[BackgroundRelay] SMS attempt ${attempt + 1}/$kSmsMaxRetries | '
-          'id=${pe.id} targets=[${targets.join(', ')}]',
+          '[BackgroundRelay] SMS attempt ${attempt + 1}/$kSmsMaxRetries | id=${pe.id}',
         );
 
-        bool anySent = false;
-        for (final number in targets) {
-          // Build a proper EmergencyContact and send.
-          smsService.emergencyContacts = [
-            EmergencyContact(name: 'SOS Alert', phone: number),
-          ];
-          smsService.enabled = true;
+        smsService.emergencyContacts = contacts;
+        smsService.enabled = true;
 
-          final event = SosEvent(
-            id: pe.id,
-            bleUid: Uint8List(6),
-            flags: pe.flags,
-            sequence: pe.sequence,
-            timestamp:
-                DateTime.fromMillisecondsSinceEpoch(pe.timestamp, isUtc: true),
-            receiverLocation:
-                ReceiverLocation(lat: pe.receiverLat, lon: pe.receiverLon),
-          );
+        final sent = await smsService.sendSos(event, victimInfo: victimInfo);
+        debugPrint('[BackgroundRelay] Device SMS sent=$sent for ${pe.id}');
 
-          final sent = await smsService.sendSos(event);
-          debugPrint(
-            '[BackgroundRelay] SMS to $number: sent=${sent > 0} (count=$sent)',
-          );
-          if (sent > 0) anySent = true;
-        }
-
-        if (anySent) {
+        if (sent > 0) {
           await pendingDb.markSmsSent(pe.id);
-          debugPrint('[BackgroundRelay] SMS sent OK for ${pe.id} after attempt ${attempt + 1}');
+          debugPrint(
+            '[BackgroundRelay] Device SMS OK for ${pe.id} after attempt ${attempt + 1} '
+            '($sent/${contacts.length} delivered)',
+          );
           return;
         }
       } catch (e) {
         debugPrint('[BackgroundRelay] SMS attempt ${attempt + 1} threw: $e');
       }
 
-      // Exponential backoff.
+      // Exponential backoff before retry.
       if (attempt < kSmsMaxRetries - 1) {
         final delay = kSmsRetryBackoff * (attempt + 1);
         debugPrint('[BackgroundRelay] SMS retry backoff: ${delay.inSeconds}s');
@@ -299,7 +361,7 @@ class BackgroundRelayService {
       }
     }
 
-    debugPrint('[BackgroundRelay] SMS FAILED all $kSmsMaxRetries attempts for ${pe.id}');
+    debugPrint('[BackgroundRelay] Device SMS FAILED all $kSmsMaxRetries attempts for ${pe.id}');
   }
 
   // ---------------------------------------------------------------------------

@@ -10,8 +10,15 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 const bool kAutoSmsEnabled = true;
 
 /// SMS target number(s) — override via SMS_DEMO_NUMBER in .env.
+/// Used only as a last-resort fallback when no victim profile is available.
 final String kSmsDemoNumber =
     dotenv.maybeGet('SMS_DEMO_NUMBER') ?? '+91XXXXXXXXXX';
+
+/// Escalation operator number — always receives a direct device SMS copy
+/// in addition to the backend Twilio message.
+/// Override via ESCALATION_PHONE in .env.
+final String kEscalationPhone =
+    dotenv.maybeGet('ESCALATION_PHONE') ?? '';
 
 /// Interval between queue drain attempts when connectivity is available.
 const Duration kQueueDrainInterval = Duration(seconds: 15);

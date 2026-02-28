@@ -15,10 +15,14 @@ class SmsFallbackService {
   List<EmergencyContact> emergencyContacts = [];
   bool enabled = true;
 
-  Future<int> sendSos(SosEvent event) async {
+  /// Send SOS SMS to all [emergencyContacts].
+  ///
+  /// [victimInfo] — optional pre-formatted victim details (name, blood group,
+  /// allergies, conditions) to prepend to the message body.
+  Future<int> sendSos(SosEvent event, {String? victimInfo}) async {
     if (!enabled || emergencyContacts.isEmpty) return 0;
 
-    final message = _formatMessage(event);
+    final message = _formatMessage(event, victimInfo: victimInfo);
     int sent = 0;
 
     for (final contact in emergencyContacts) {
@@ -30,7 +34,7 @@ class SmsFallbackService {
     return sent;
   }
 
-  String _formatMessage(SosEvent event) {
+  String _formatMessage(SosEvent event, {String? victimInfo}) {
     final loc = event.receiverLocation;
     final locStr = loc != null
         ? '${loc.lat.toStringAsFixed(5)}, ${loc.lon.toStringAsFixed(5)}'
@@ -39,11 +43,16 @@ class SmsFallbackService {
         ? 'https://maps.google.com/?q=${loc.lat},${loc.lon}'
         : '';
 
-    return 'EMERGENCY SOS from AfterMath!\n'
-        'Approx location: $locStr\n'
-        '${mapsUrl.isNotEmpty ? '$mapsUrl\n' : ''}'
-        'Time: ${event.timestamp.toIso8601String()}\n'
-        'ID: ${event.id}';
+    final buf = StringBuffer();
+    buf.writeln('EMERGENCY SOS — AfterMath');
+    if (victimInfo != null && victimInfo.isNotEmpty) {
+      buf.writeln(victimInfo);
+    }
+    buf.writeln('Relayer location: $locStr');
+    if (mapsUrl.isNotEmpty) buf.writeln(mapsUrl);
+    buf.writeln('Time: ${event.timestamp.toIso8601String()}');
+    buf.write('ID: ${event.id}');
+    return buf.toString();
   }
 
   Future<bool> _sendSms(String phoneNumber, String message) async {
