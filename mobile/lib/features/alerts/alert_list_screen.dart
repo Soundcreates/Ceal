@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/features/alerts/alert_card.dart';
 import 'package:aftermath/features/alerts/alerts_notifier.dart';
 import 'package:aftermath/models/sos_event.dart';
@@ -128,14 +129,25 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.notifications_none, size: 64, color: Colors.grey[400]),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppTheme.nbInk.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+              border: Border.all(
+                color: AppTheme.nbInk.withValues(alpha: 0.15),
+                width: AppTheme.nbBorder,
+              ),
+            ),
+            child: Icon(Icons.notifications_none, size: 36, color: AppTheme.nbInk.withValues(alpha: 0.3)),
+          ),
           const SizedBox(height: 16),
           Text(
             'No alerts received',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppTheme.nbInk.withValues(alpha: 0.5),
+            ),
           ),
           const SizedBox(height: 8),
           Text(

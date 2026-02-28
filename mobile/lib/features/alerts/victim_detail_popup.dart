@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:aftermath/models/sos_type.dart';
+import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
 
 /// Data bag passed from the notification tap into the popup.
 class VictimDetailData {
@@ -130,15 +132,19 @@ class _VictimDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
 
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.92,
       ),
       decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: AppTheme.nbBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(0)),
+        border: const Border(
+          top: BorderSide(color: AppTheme.nbInk, width: 4),
+          left: BorderSide(color: AppTheme.nbInk, width: 4),
+          right: BorderSide(color: AppTheme.nbInk, width: 4),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -149,30 +155,36 @@ class _VictimDetailSheet extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: cs.onSurface.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2),
+              color: AppTheme.nbInk.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.zero,
             ),
           ),
           const SizedBox(height: 8),
 
-          // Title bar
+          // Title bar — NB error header
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
-              color: data.sosType?.color ?? const Color(0xFFB71C1C),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
+              color: AppTheme.nbError,
+              border: const Border(
+                top: BorderSide(color: AppTheme.nbInk, width: 4),
+                bottom: BorderSide(color: AppTheme.nbInk, width: 4),
               ),
             ),
             child: Row(
               children: [
-                Icon(
-                  data.sosType?.icon ?? Icons.warning_amber_rounded,
-                  color: Colors.white,
-                  size: 28,
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.zero,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 4),
+                  ),
+                  child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     data.victimName != null
@@ -299,19 +311,12 @@ class _VictimDetailSheet extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFB71C1C),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        icon: const Icon(Icons.call, color: Colors.white),
-                        label: const Text(
-                          'Call 112',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      child: NBButton(
+                        label: 'Call 112',
+                        icon: Icons.call,
+                        color: AppTheme.nbError,
+                        textColor: Colors.white,
+                        expanded: true,
                         onPressed: () {
                           launchUrl(
                             Uri.parse('tel:112'),
@@ -322,19 +327,12 @@ class _VictimDetailSheet extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF1565C0),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        icon: const Icon(Icons.map, color: Colors.white),
-                        label: const Text(
-                          'Open Maps',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      child: NBButton(
+                        label: 'Open Maps',
+                        icon: Icons.map,
+                        color: AppTheme.nbAccent2,
+                        textColor: Colors.white,
+                        expanded: true,
                         onPressed: () {
                           if (data.lat != null && data.lon != null) {
                             launchUrl(
@@ -391,32 +389,34 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 20, color: cs.primary),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: cs.primary,
-                  ),
+    return NBCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              NBIconBox(
+                icon: icon,
+                size: 28,
+                bgColor: AppTheme.nbAccent2.withValues(alpha: 0.12),
+                color: AppTheme.nbAccent2,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  letterSpacing: 1.0,
+                  color: AppTheme.nbInk,
                 ),
-              ],
-            ),
-            const Divider(height: 16),
-            ...children,
-          ],
-        ),
+              ),
+            ],
+          ),
+          const Divider(height: 16, thickness: 1, color: Color(0x154A4A4A)),
+          ...children,
+        ],
       ),
     );
   }
@@ -439,8 +439,8 @@ class _DetailRow extends StatelessWidget {
     final valueWidget = Text(
       value,
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        fontWeight: FontWeight.w500,
-        color: isTappable ? const Color(0xFF1565C0) : null,
+        fontWeight: FontWeight.w600,
+        color: isTappable ? AppTheme.nbAccent2 : null,
         decoration: isTappable ? TextDecoration.underline : null,
       ),
     );
@@ -455,9 +455,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
+                color: AppTheme.nbInk.withValues(alpha: 0.5),
               ),
             ),
           ),

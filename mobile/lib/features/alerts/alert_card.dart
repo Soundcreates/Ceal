@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
 import 'package:aftermath/models/sos_event.dart';
 
 class AlertCard extends StatelessWidget {
@@ -26,19 +27,18 @@ class AlertCard extends StatelessWidget {
     final dateFmt = DateFormat.yMMMd();
 
     final statusColor = switch (event.status) {
-      SosStatus.active => AppTheme.sosColor,
-      SosStatus.relayed => Colors.orange,
-      SosStatus.acknowledged => Colors.blue,
-      SosStatus.resolved => AppTheme.safeColor,
-      SosStatus.cancelled => Colors.grey,
+      SosStatus.active => AppTheme.nbError,
+      SosStatus.relayed => AppTheme.nbWarn,
+      SosStatus.acknowledged => AppTheme.nbAccent2,
+      SosStatus.resolved => AppTheme.nbOk,
+      SosStatus.cancelled => AppTheme.nbInk.withValues(alpha: 0.3),
     };
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: GestureDetector(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
+        child: NBCard(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,30 +46,23 @@ class AlertCard extends StatelessWidget {
               // Header row
               Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: statusColor),
-                  const SizedBox(width: 8),
+                  NBIconBox(
+                    icon: Icons.warning_amber_rounded,
+                    size: 34,
+                    bgColor: statusColor.withValues(alpha: 0.15),
+                    color: statusColor,
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'SOS Alert',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.titleMedium,
                     ),
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      event.status.name.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: statusColor,
-                      ),
-                    ),
+                  NBBadge(
+                    label: event.status.name.toUpperCase(),
+                    color: statusColor.withValues(alpha: 0.2),
+                    textColor: statusColor,
                   ),
                 ],
               ),
@@ -79,7 +72,7 @@ class AlertCard extends StatelessWidget {
               if (event.receiverLocation != null)
                 Row(
                   children: [
-                    const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                    Icon(Icons.location_on, size: 16, color: AppTheme.nbInk.withValues(alpha: 0.5)),
                     const SizedBox(width: 4),
                     Text(
                       '≈ ${event.receiverLocation!.lat.toStringAsFixed(4)}, '
@@ -93,7 +86,7 @@ class AlertCard extends StatelessWidget {
               // Time
               Row(
                 children: [
-                  const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                  Icon(Icons.access_time, size: 16, color: AppTheme.nbInk.withValues(alpha: 0.5)),
                   const SizedBox(width: 4),
                   Text(
                     '${dateFmt.format(event.timestamp.toLocal())} '
@@ -107,7 +100,7 @@ class AlertCard extends StatelessWidget {
               // Relay hops
               Row(
                 children: [
-                  const Icon(Icons.swap_horiz, size: 16, color: Colors.grey),
+                  Icon(Icons.swap_horiz, size: 16, color: AppTheme.nbInk.withValues(alpha: 0.5)),
                   const SizedBox(width: 4),
                   Text(
                     '${event.relayHops} relay hop(s)',
@@ -122,9 +115,11 @@ class AlertCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: FilledButton.tonal(
+                  child: NBButton(
+                    label: 'Acknowledge',
                     onPressed: onAcknowledge,
-                    child: const Text('Acknowledge'),
+                    icon: Icons.check,
+                    color: AppTheme.nbAccent2,
                   ),
                 ),
               ],

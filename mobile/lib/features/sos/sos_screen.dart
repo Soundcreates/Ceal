@@ -7,6 +7,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/features/sos/sos_notifier.dart';
 import 'package:aftermath/models/sos_type.dart';
@@ -70,7 +71,7 @@ class SosScreen extends ConsumerWidget {
         return const _StatusView(
           icon: Icons.my_location,
           label: 'Acquiring location...',
-          color: Colors.amber,
+          color: AppTheme.nbWarn,
         );
       case SosPhase.broadcasting:
         return const _BroadcastingView();
@@ -78,13 +79,13 @@ class SosScreen extends ConsumerWidget {
         return const _StatusView(
           icon: Icons.cloud_upload,
           label: 'Uploading to server...',
-          color: Colors.orange,
+          color: AppTheme.nbAccent2,
         );
       case SosPhase.smsFallback:
         return const _StatusView(
           icon: Icons.sms,
           label: 'Sending SMS fallback...',
-          color: Colors.deepOrange,
+          color: AppTheme.sosColor,
         );
       case SosPhase.sent:
         return _SentView(
@@ -93,10 +94,10 @@ class SosScreen extends ConsumerWidget {
           smsSent: sosState.smsSent,
         );
       case SosPhase.cancelled:
-        return const _StatusView(
+        return _StatusView(
           icon: Icons.cancel_outlined,
           label: 'SOS Cancelled',
-          color: Colors.grey,
+          color: AppTheme.nbInk.withValues(alpha: 0.4),
         );
     }
   }
@@ -115,19 +116,32 @@ class _IdleView extends StatelessWidget {
       children: [
         if (errorMessage != null) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              errorMessage!,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: NBCard(
+              color: AppTheme.nbError.withValues(alpha: 0.1),
+              borderColor: AppTheme.nbError,
+              shadow: false,
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.nbError,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 24),
         ],
-        const Text(
+        Text(
           'Press and hold to\nsend emergency SOS',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, color: Colors.white70),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.nbInk.withValues(alpha: 0.5),
+          ),
         ),
         const SizedBox(height: 40),
         GestureDetector(
@@ -138,21 +152,16 @@ class _IdleView extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppTheme.sosColor,
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.sosColor.withValues(alpha: 0.5),
-                  blurRadius: 30,
-                  spreadRadius: 5,
-                ),
-              ],
+              border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+              boxShadow: AppTheme.nbShadow,
             ),
-            child: const Center(
+            child: Center(
               child: Text(
                 'SOS',
                 style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.w900,
-                  color: Colors.white,
+                  color: AppTheme.nbInk,
                   letterSpacing: 4,
                 ),
               ),
@@ -185,7 +194,16 @@ class _CountdownView extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(sosType.icon, size: 64, color: sosType.color),
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: AppTheme.nbWarn.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.zero,
+            border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+          ),
+          child: const Icon(Icons.warning_amber_rounded, size: 36, color: AppTheme.nbWarn),
+        ),
         const SizedBox(height: 16),
         Text(
           'Sending ${sosType.label} in',
@@ -193,23 +211,32 @@ class _CountdownView extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        Text(
-          '$remaining',
-          style: TextStyle(
-            fontSize: 72,
-            fontWeight: FontWeight.bold,
-            color: sosType.color,
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            color: AppTheme.nbWarn.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+            border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+            boxShadow: AppTheme.nbShadow,
+          ),
+          child: Center(
+            child: Text(
+              '$remaining',
+              style: const TextStyle(
+                fontSize: 64,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.nbWarn,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 24),
-        FilledButton.icon(
+        NBButton(
+          label: 'CANCEL',
           onPressed: onCancel,
-          icon: const Icon(Icons.close),
-          label: const Text('CANCEL'),
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.grey[700],
-            minimumSize: const Size(180, 56),
-          ),
+          icon: Icons.close,
+          color: AppTheme.nbInk.withValues(alpha: 0.5),
         ),
       ],
     );
@@ -240,12 +267,21 @@ class _BroadcastingView extends ConsumerWidget {
               height: 56,
               child: CircularProgressIndicator(
                 strokeWidth: 3,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.nbAccent2),
               ),
             ),
           ),
           const SizedBox(height: 24),
-          const Icon(Icons.bluetooth_searching, color: Colors.blue, size: 40),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppTheme.nbAccent2.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.zero,
+              border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+            ),
+            child: const Icon(Icons.bluetooth_searching, color: AppTheme.nbAccent2, size: 28),
+          ),
           const SizedBox(height: 12),
           Text(
             'Broadcasting SOS via BLE...',
@@ -258,7 +294,10 @@ class _BroadcastingView extends ConsumerWidget {
           else
             Text(
               'Scanning for nearby devices...',
-              style: TextStyle(color: Colors.white38, fontSize: 13),
+              style: TextStyle(
+                color: AppTheme.nbInk.withValues(alpha: 0.4),
+                fontSize: 13,
+              ),
             ),
         ],
       ),
@@ -270,49 +309,61 @@ class _BroadcastingView extends ConsumerWidget {
     List<ScanResult> results,
   ) {
     return [
-      Text(
-        '${results.length} device${results.length == 1 ? '' : 's'} nearby',
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(color: Colors.white60),
+      NBBadge(
+        label: '${results.length} device${results.length == 1 ? '' : 's'} nearby',
+        color: AppTheme.nbAccent.withValues(alpha: 0.3),
       ),
       const SizedBox(height: 8),
-      SizedBox(
+      Container(
         height: 240,
-        child: ListView.separated(
-          itemCount: results.length,
-          separatorBuilder: (_, _) =>
-              const Divider(height: 1, color: Color(0x1FFFFFFF)),
-          itemBuilder: (context, i) {
-            final r = results[i];
-            final isAfterMath = r.advertisementData.manufacturerData
-                .containsKey(kManufacturerId);
-            final advName = r.advertisementData.advName;
-            final label = advName.isNotEmpty ? advName : r.device.remoteId.str;
-            return ListTile(
-              dense: true,
-              leading: Icon(
-                isAfterMath ? Icons.warning_amber_rounded : Icons.bluetooth,
-                color: isAfterMath ? Colors.amber : Colors.white38,
-                size: 20,
-              ),
-              title: Text(
-                label,
-                style: const TextStyle(fontSize: 13),
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: isAfterMath
-                  ? Text(
-                      'AfterMath device',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.amber.withValues(alpha: 0.8),
-                      ),
-                    )
-                  : null,
-              trailing: _RssiChip(rssi: r.rssi),
-            );
-          },
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+          border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+          color: AppTheme.nbCard,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.zero,
+          child: ListView.separated(
+            itemCount: results.length,
+            separatorBuilder: (_, _) =>
+                Divider(height: 1, thickness: 1, color: AppTheme.nbInk.withValues(alpha: 0.15)),
+            itemBuilder: (context, i) {
+              final r = results[i];
+              final isAfterMath =
+                  r.advertisementData.manufacturerData.containsKey(kManufacturerId);
+              final advName = r.advertisementData.advName;
+              final label = advName.isNotEmpty
+                  ? advName
+                  : r.device.remoteId.str;
+              return ListTile(
+                dense: true,
+                leading: NBIconBox(
+                  icon: isAfterMath ? Icons.warning_amber_rounded : Icons.bluetooth,
+                  size: 32,
+                  bgColor: isAfterMath
+                      ? AppTheme.nbWarn.withValues(alpha: 0.2)
+                      : AppTheme.nbAccent2.withValues(alpha: 0.1),
+                  color: isAfterMath ? AppTheme.nbWarn : AppTheme.nbInk.withValues(alpha: 0.4),
+                ),
+                title: Text(
+                  label,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: isAfterMath
+                    ? Text(
+                        'AfterMath device',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.nbWarn,
+                        ),
+                      )
+                    : null,
+                trailing: _RssiChip(rssi: r.rssi),
+              );
+            },
+          ),
         ),
       ),
     ];
@@ -329,22 +380,33 @@ class _RssiChip extends StatelessWidget {
     final Color color;
     final IconData icon;
     if (rssi >= -60) {
-      color = Colors.greenAccent;
+      color = AppTheme.nbOk;
       icon = Icons.signal_cellular_alt;
     } else if (rssi >= -75) {
-      color = Colors.amber;
+      color = AppTheme.nbWarn;
       icon = Icons.signal_cellular_alt_2_bar;
     } else {
-      color = Colors.redAccent;
+      color = AppTheme.nbError;
       icon = Icons.signal_cellular_alt_1_bar;
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text('$rssi dBm', style: TextStyle(fontSize: 11, color: color)),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(color: color, width: AppTheme.nbBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '$rssi dBm',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -378,7 +440,16 @@ class _StatusView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        Icon(icon, color: color, size: 40),
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.zero,
+            border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+          ),
+          child: Icon(icon, color: color, size: 28),
+        ),
         const SizedBox(height: 12),
         Text(
           label,
@@ -414,13 +485,25 @@ class _SentView extends StatelessWidget {
           'Broadcast to nearby BLE devices. Alert queued — will upload to server when connection returns.';
     }
 
+    final statusColor = backendConfirmed ? AppTheme.nbOk : AppTheme.nbWarn;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          backendConfirmed ? Icons.check_circle : Icons.check_circle_outline,
-          size: 72,
-          color: backendConfirmed ? Colors.green : Colors.amber,
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+            border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+            boxShadow: AppTheme.nbShadow,
+          ),
+          child: Icon(
+            backendConfirmed ? Icons.check_circle : Icons.check_circle_outline,
+            size: 44,
+            color: statusColor,
+          ),
         ),
         const SizedBox(height: 16),
         Text('SOS Sent', style: Theme.of(context).textTheme.headlineSmall),
@@ -430,11 +513,18 @@ class _SentView extends StatelessWidget {
           child: Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70),
+            style: TextStyle(
+              color: AppTheme.nbInk.withValues(alpha: 0.6),
+            ),
           ),
         ),
         const SizedBox(height: 24),
-        OutlinedButton(onPressed: onReset, child: const Text('Back')),
+        NBButton(
+          label: 'Back',
+          onPressed: onReset,
+          icon: Icons.arrow_back,
+          color: AppTheme.nbInk.withValues(alpha: 0.7),
+        ),
       ],
     );
   }

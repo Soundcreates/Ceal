@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
 import 'package:aftermath/providers.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
@@ -144,7 +145,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
           child: Form(
             key: _formKey,
             child: Column(
@@ -152,34 +153,42 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               children: [
                 const SizedBox(height: 24),
                 Center(
-                  child: Icon(
-                    Icons.person_add_alt_1,
-                    size: 64,
-                    color: AppTheme.sosColor,
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppTheme.nbAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+                      border: Border.all(
+                        color: AppTheme.nbInk,
+                        width: AppTheme.nbBorder,
+                      ),
+                      boxShadow: AppTheme.nbShadowSm,
+                    ),
+                    child: const Icon(Icons.person_add_alt_1, size: 36, color: AppTheme.nbInk),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Center(
                   child: Text(
                     'Create Account',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: theme.textTheme.headlineSmall,
                   ),
                 ),
                 Center(
                   child: Text(
                     'Your phone registers your emergency identity.',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.grey),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.nbInk.withValues(alpha: 0.5),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 28),
 
                 // ── Personal details ──────────────────────────────────────
-                _sectionLabel(theme, 'Your details'),
-                const SizedBox(height: 8),
+                const NBSectionHeader(label: 'Your details', icon: Icons.person),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
@@ -229,7 +238,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _sectionLabel(theme, 'Emergency contacts (optional)'),
+                    const NBSectionHeader(label: 'Emergency Contacts', icon: Icons.contacts),
                     if (_contactPhoneCtrls.length < 3)
                       TextButton.icon(
                         icon: const Icon(Icons.add, size: 16),
@@ -286,7 +295,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         const SizedBox(width: 8),
                         IconButton(
                           icon: const Icon(Icons.remove_circle_outline,
-                              color: Colors.red),
+                              color: AppTheme.sosColor),
                           onPressed: () => setState(() {
                             _contactNameCtrls.removeAt(i).dispose();
                             _contactPhoneCtrls.removeAt(i).dispose();
@@ -299,8 +308,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 const SizedBox(height: 24),
 
                 // ── Medical profile ───────────────────────────────────────
-                _sectionLabel(theme, 'Medical profile (optional)'),
-                const SizedBox(height: 8),
+                const NBSectionHeader(label: 'Medical Profile', icon: Icons.medical_services),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: _bloodGroupCtrl.text.isEmpty
                       ? null
@@ -342,43 +351,36 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
                 if (_error != null) ...[
                   const SizedBox(height: 16),
-                  Container(
+                  NBCard(
+                    color: AppTheme.nbError.withValues(alpha: 0.08),
+                    borderColor: AppTheme.nbError,
+                    shadow: false,
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
                     child: Row(
                       children: [
                         const Icon(Icons.error_outline,
-                            color: Colors.red, size: 18),
+                            color: AppTheme.nbError, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(_error!,
                               style: const TextStyle(
-                                  color: Colors.red, fontSize: 13)),
+                                  color: AppTheme.nbError, fontSize: 13, fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),
                   ),
                 ],
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 28),
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
+                  child: NBButton(
+                    label: 'Register',
                     onPressed: _submitting ? null : _submit,
-                    child: _submitting
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Register'),
+                    icon: Icons.check,
+                    isLoading: _submitting,
+                    color: AppTheme.nbOk,
+                    expanded: true,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -390,10 +392,20 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 ),
                 const SizedBox(height: 16),
                 Center(
-                  child: Text(
-                    'BLE UID: ${_formatBleUid()}',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.grey.shade400, fontSize: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.nbInk.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.zero,
+                      border: Border.all(color: AppTheme.nbInk.withValues(alpha: 0.3), width: AppTheme.nbBorder),
+                    ),
+                    child: Text(
+                      'BLE UID: ${_formatBleUid()}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppTheme.nbInk.withValues(alpha: 0.4),
+                        fontSize: 10,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -403,11 +415,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       ),
     );
   }
-
-  Widget _sectionLabel(ThemeData theme, String label) => Text(
-        label,
-        style: theme.textTheme.labelLarge?.copyWith(color: Colors.grey),
-      );
 
   String _formatBleUid() {
     final uid = ref.watch(bleUidProvider);

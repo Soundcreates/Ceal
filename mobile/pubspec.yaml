@@ -1,5 +1,5 @@
 name: aftermath
-description: "Offline-first BLE emergency alert mesh network for civic safety."
+description: "CEAL — Civic Emergency Access Layer. Offline-first BLE emergency alert mesh network for civic safety."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -62,14 +62,34 @@ dependencies:
 
   # URL launching (phone dialer, maps)
   url_launcher: ^6.3.1
+  google_fonts: ^8.0.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   mocktail: ^1.0.4
+  flutter_launcher_icons: ^0.14.2
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/logo.png"
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/logo.png"
+  windows:
+    generate: true
+    image_path: "assets/logo.png"
+  macos:
+    generate: true
+    image_path: "assets/logo.png"
 
 flutter:
   uses-material-design: true
   assets:
     - .env
+    - assets/
