@@ -1,5 +1,9 @@
 # Environment / secrets — never commit these
-.env
+# .env is committed intentionally (dev defaults, no real secrets).
+# For production secrets, create .env.local or .env.production and keep them out of git.
+.env.local
+.env.production
+.env.staging
 secrets/
 
 # Miscellaneous
@@ -21,6 +25,7 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
+.env
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line

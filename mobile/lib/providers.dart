@@ -4,6 +4,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/core/encryption.dart';
+import 'package:aftermath/core/env.dart';
 import 'package:aftermath/core/permissions.dart';
 import 'package:aftermath/services/backend_service.dart';
 import 'package:aftermath/services/ble_advertiser_service.dart';
@@ -24,7 +25,7 @@ final permissionServiceProvider = Provider<PermissionService>((ref) {
 });
 
 final encryptionServiceProvider = Provider<EncryptionService>((ref) {
-  return EncryptionService();
+  return EncryptionService(secret: Env.bleEncryptionSecret);
 });
 
 final locationServiceProvider = Provider<LocationService>((ref) {
@@ -38,7 +39,8 @@ final queueServiceProvider = Provider<QueueService>((ref) {
 });
 
 final backendServiceProvider = Provider<BackendService>((ref) {
-  final svc = BackendService();
+  final svc = BackendService(baseUrl: Env.apiBaseUrl);
+  if (Env.apiAuthToken.isNotEmpty) svc.authToken = Env.apiAuthToken;
   ref.onDispose(() => svc.dispose());
   return svc;
 });
