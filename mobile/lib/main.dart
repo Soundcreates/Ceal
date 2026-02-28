@@ -1,67 +1,100 @@
+/// AfterMath — Offline-first BLE emergency alert mesh network.
+///
+/// Entry point. Bootstraps services, configures routing, and wires up the
+/// BLE scanner → PacketReassembler → MeshRelay → AlertsNotifier pipeline.
+library;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/features/alerts/alert_list_screen.dart';
+import 'package:aftermath/features/alerts/alerts_notifier.dart';
+import 'package:aftermath/features/onboarding/permission_screen.dart';
+import 'package:aftermath/features/onboarding/welcome_screen.dart';
+import 'package:aftermath/features/settings/settings_screen.dart';
+import 'package:aftermath/features/sos/sos_screen.dart';
+import 'package:aftermath/providers.dart';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Lock to portrait for the SOS trigger (large button needs stable layout).
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
+  runApp(const ProviderScope(child: AftermathApp()));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class AftermathApp extends ConsumerStatefulWidget {
+  const AftermathApp({super.key});
 
-  // This widget is the root of your application.
+  @override
+  ConsumerState<AftermathApp> createState() => _AftermathAppState();
+}
+
+class _AftermathAppState extends ConsumerState<AftermathApp> {
+  bool _onboarded = false;
+  bool _permissionsGranted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initServices();
+  }
+
+  /// Wire up the BLE scanner → reassembler → mesh relay → alerts pipeline.
+  void _initServices() {
+    final scanner = ref.read(bleScannerProvider);
+    final reassembler = ref.read(packetReassemblerProvider);
+    final relay = ref.read(meshRelayProvider);
+    final alerts = ref.read(alertsNotifierProvider.notifier);
+
+    // Scanner feeds packets into the reassembler.
+    scanner.onPacketReceived = reassembler.addPacket;
+
+    // Reassembler feeds completed SOS events into relay + alerts.
+    reassembler.onSosReassembled = (event, deviceId) {
+      relay.onSosReceived(event, deviceId);
+      alerts.addAlert(event);
+    };
+
+    // Initialise the foreground service (Android).
+    ref.read(foregroundServiceProvider).init();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-       colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'AfterMath',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.dark,
+      home: _buildHome(),
+      routes: {
+        '/alerts': (_) => const AlertListScreen(),
+        '/settings': (_) => const SettingsScreen(),
+      },
     );
   }
-}
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  Widget _buildHome() {
+    if (!_onboarded) {
+      return WelcomeScreen(
+        onGetStarted: () => setState(() => _onboarded = true),
+      );
+    }
 
-  final String title;
+    if (!_permissionsGranted) {
+      return PermissionScreen(
+        onComplete: () => setState(() => _permissionsGranted = true),
+      );
+    }
 
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-     _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-   return Scaffold(
-      appBar: AppBar(
-       backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-       title: Text(widget.title),
-      ),
-      body: Center(
-       child: Column(
-         mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
-    );
+    return const SosScreen();
   }
 }
+
