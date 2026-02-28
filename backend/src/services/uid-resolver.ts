@@ -1,12 +1,24 @@
 /**
- * AfterMath Backend — BLE UID resolution service.
+ * AfterMath Backend — BLE UID resolution & generation service.
  *
- * Accepts a 6-byte BLE UID (Buffer) and resolves it to a registered user.
+ * - resolveUid: Accepts a 6-byte BLE UID (Buffer) and resolves it to a registered user.
+ * - generateBleUid: Deterministic 6-byte BLE UID from userId + server secret.
  */
 
 import type { Pool } from 'pg';
 import type { User } from '../models/sos-event.js';
+import crypto from 'node:crypto';
+import { env } from '../config.js';
 import { logger } from '../logger.js';
+
+/**
+ * Generate a deterministic 6-byte BLE UID from userId + server secret.
+ * Uses SHA-256, then takes the first 6 bytes.
+ */
+export function generateBleUid(userId: string): Buffer {
+  const hash = crypto.createHash('sha256').update(userId + env.SERVER_SECRET).digest();
+  return hash.subarray(0, 6);
+}
 
 /**
  * Resolve a BLE UID to a registered user.

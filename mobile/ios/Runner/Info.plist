@@ -65,6 +65,8 @@
 	<string>AfterMath includes your location in SOS alerts so responders can find you quickly.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>AfterMath needs background location access to include accurate coordinates when relaying emergency SOS alerts.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>AfterMath uses the camera to scan Aadhaar QR during onboarding verification.</string>
 
 	<!-- Background modes -->
 	<key>UIBackgroundModes</key>

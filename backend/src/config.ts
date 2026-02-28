@@ -39,6 +39,11 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),
+
+  // Aadhaar ZK verification (Anon Aadhaar)
+  // Set to 'true' to verify against the test UIDAI public key hash
+  // (for development/staging). Defaults to 'false' (production keys).
+  USE_TEST_AADHAAR: z.enum(['true', 'false']).default('false'),
 });
 
 export type Env = z.infer<typeof envSchema>;

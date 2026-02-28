@@ -1,7 +1,4 @@
 /// AfterMath — Offline-first BLE emergency alert mesh network.
-///
-/// Entry point. Bootstraps services, configures routing, and wires up the
-/// BLE scanner → PacketReassembler → MeshRelay → AlertsNotifier pipeline.
 library;
 
 import 'dart:async';
@@ -14,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/features/alerts/alert_list_screen.dart';
 import 'package:aftermath/features/alerts/alerts_notifier.dart';
+import 'package:aftermath/features/onboarding/aadhaar_qr_screen.dart';
 import 'package:aftermath/features/onboarding/permission_screen.dart';
 import 'package:aftermath/features/onboarding/welcome_screen.dart';
 import 'package:aftermath/features/settings/settings_screen.dart';
@@ -22,47 +20,57 @@ import 'package:aftermath/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Load runtime environment variables from the bundled .env asset.
-  // Wrapped in try/catch so the app works in CI where the asset may be absent.
-  try {
-    await dotenv.load(fileName: '.env', mergeWith: {});
-  } catch (_) {
-    // No .env asset found — compiled defaults in Env will be used.
-  }
-
-  // Lock to portrait for the SOS trigger (large button needs stable layout).
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
-
-  runApp(const ProviderScope(child: AftermathApp()));
+  await dotenv.load(fileName: '.env');
+  runApp(const ProviderScope(child: MyApp()));
 }
 
-class AftermathApp extends ConsumerStatefulWidget {
-  const AftermathApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
-  ConsumerState<AftermathApp> createState() => _AftermathAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'AfterMath',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      routes: {
+        '/alerts': (_) => const AlertListScreen(),
+        '/settings': (_) => const SettingsScreen(),
+      },
+      home: const AppBootstrapScreen(),
+    );
+  }
 }
 
-class _AftermathAppState extends ConsumerState<AftermathApp> {
-  bool _onboarded = false;
-  bool _permissionsGranted = false;
+enum _OnboardingStep { welcome, permissions, aadhaarQr, home }
+
+class AppBootstrapScreen extends ConsumerStatefulWidget {
+  const AppBootstrapScreen({super.key});
+
+  @override
+  ConsumerState<AppBootstrapScreen> createState() => _AppBootstrapScreenState();
+}
+
+class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
+  static const EventChannel _volumeEventChannel = EventChannel(
+    'volume_trigger/events',
+  );
+
+  StreamSubscription<dynamic>? _volumeSubscription;
+  _OnboardingStep _step = _OnboardingStep.welcome;
 
   @override
   void initState() {
     super.initState();
     _initServices();
+    _listenVolumeEvents();
   }
 
   /// Wire up the always-on BLE SOS relay + auto-escalation pipeline.
   Future<void> _initServices() async {
-    // Initialise settings persistence.
     final settings = ref.read(settingsServiceProvider);
     await settings.init();
 
-    // Load SMS contacts from persisted settings.
     final sms = ref.read(smsFallbackProvider);
     sms.emergencyContacts = await settings.loadContacts();
     sms.enabled = await settings.isSmsEnabled();
@@ -79,6 +87,7 @@ class _AftermathAppState extends ConsumerState<AftermathApp> {
       alerts.addAlert(event);
     };
 
+    ref.read(foregroundServiceProvider).init();
     // Always-on background relay — wire alerts notifier.
     final bgRelay = ref.read(backgroundRelayProvider);
     bgRelay.alertsNotifier = alerts;
@@ -90,35 +99,46 @@ class _AftermathAppState extends ConsumerState<AftermathApp> {
     await bgRelay.start();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'AfterMath',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.dark,
-      home: _buildHome(),
-      routes: {
-        '/alerts': (_) => const AlertListScreen(),
-        '/settings': (_) => const SettingsScreen(),
-      },
-    );
+  void _listenVolumeEvents() {
+    _volumeSubscription = _volumeEventChannel.receiveBroadcastStream().listen((
+      dynamic event,
+    ) {
+      if (!mounted || event != 'double_volume_up') return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Double volume-up detected')),
+      );
+    });
   }
 
-  Widget _buildHome() {
-    if (!_onboarded) {
-      return WelcomeScreen(
-        onGetStarted: () => setState(() => _onboarded = true),
-      );
-    }
+  @override
+  void dispose() {
+    _volumeSubscription?.cancel();
+    super.dispose();
+  }
 
-    if (!_permissionsGranted) {
-      return PermissionScreen(
-        onComplete: () => setState(() => _permissionsGranted = true),
-      );
+  @override
+  Widget build(BuildContext context) {
+    switch (_step) {
+      case _OnboardingStep.welcome:
+        return WelcomeScreen(
+          onGetStarted: () {
+            setState(() => _step = _OnboardingStep.permissions);
+          },
+        );
+      case _OnboardingStep.permissions:
+        return PermissionScreen(
+          onComplete: () {
+            setState(() => _step = _OnboardingStep.aadhaarQr);
+          },
+        );
+      case _OnboardingStep.aadhaarQr:
+        return AadhaarQrScreen(
+          onComplete: () {
+            setState(() => _step = _OnboardingStep.home);
+          },
+        );
+      case _OnboardingStep.home:
+        return const SosScreen();
     }
-
-    return const SosScreen();
   }
 }

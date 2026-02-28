@@ -27,8 +27,12 @@ abstract final class Env {
 
   /// Bearer token sent with every backend request.
   /// Reads [API_AUTH_TOKEN] from `.env`; empty string → no auth header sent.
-  static String get apiAuthToken =>
-      dotenv.maybeGet('API_AUTH_TOKEN') ?? '';
+  static String get apiAuthToken => dotenv.maybeGet('API_AUTH_TOKEN') ?? '';
+
+  /// User ID used for onboarding verification calls.
+  /// Reads [ONBOARDING_USER_ID] from `.env`; empty string means unset.
+  static String get onboardingUserId =>
+      dotenv.maybeGet('ONBOARDING_USER_ID') ?? '';
 
   // -------------------------------------------------------------------------
   // BLE Encryption
@@ -54,8 +58,7 @@ abstract final class Env {
   /// Seconds after broadcast with no ACK before SMS fallback triggers.
   /// Reads [SMS_FALLBACK_TIMEOUT_SEC] from `.env`; falls back to [kSmsFallbackTimeout].
   static Duration get smsFallbackTimeout {
-    final sec =
-        int.tryParse(dotenv.maybeGet('SMS_FALLBACK_TIMEOUT_SEC') ?? '');
+    final sec = int.tryParse(dotenv.maybeGet('SMS_FALLBACK_TIMEOUT_SEC') ?? '');
     return sec != null ? Duration(seconds: sec) : kSmsFallbackTimeout;
   }
 

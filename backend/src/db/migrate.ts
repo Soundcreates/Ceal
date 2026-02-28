@@ -61,12 +61,22 @@ CREATE INDEX IF NOT EXISTS idx_sos_events_created  ON sos_events (created_at);
 
 const CREATE_USERS = `
 CREATE TABLE IF NOT EXISTS users (
-  id          UUID PRIMARY KEY,
-  name        TEXT,
-  phone       TEXT UNIQUE NOT NULL,
-  ble_uid     BYTEA UNIQUE NOT NULL,
-  language    TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                    UUID PRIMARY KEY,
+  name                  TEXT,
+  phone                 TEXT UNIQUE NOT NULL,
+  ble_uid               BYTEA UNIQUE NOT NULL,
+  language              TEXT,
+  role                  TEXT NOT NULL DEFAULT 'civilian'
+                        CHECK (role IN ('civilian', 'responder', 'admin')),
+  kyc_status            TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (kyc_status IN ('pending', 'verified', 'rejected', 'expired')),
+  aadhaar_nullifier     TEXT UNIQUE,
+  aadhaar_verified_at   TIMESTAMPTZ,
+  aadhaar_age_above_18  BOOLEAN,
+  aadhaar_gender        TEXT,
+  aadhaar_state         TEXT,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 `;
 
@@ -88,6 +98,28 @@ CREATE TABLE IF NOT EXISTS medical_profiles (
   allergies   TEXT,
   conditions  TEXT
 );
+`;
+
+const CREATE_USER_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_users_phone              ON users (phone);
+CREATE INDEX IF NOT EXISTS idx_users_ble_uid            ON users (ble_uid);
+CREATE INDEX IF NOT EXISTS idx_users_aadhaar_nullifier  ON users (aadhaar_nullifier);
+CREATE INDEX IF NOT EXISTS idx_users_kyc_status         ON users (kyc_status);
+`;
+
+const CREATE_USER_UPDATED_AT_TRIGGER = `
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'set_updated_at_users'
+  ) THEN
+    CREATE TRIGGER set_updated_at_users
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END;
+$$;
 `;
 
 async function migrate(): Promise<void> {
@@ -119,6 +151,10 @@ async function migrate(): Promise<void> {
     console.log('  ✅ emergency_contacts table');
     await pool.query(CREATE_MEDICAL_PROFILES);
     console.log('  ✅ medical_profiles table');
+    await pool.query(CREATE_USER_INDEXES);
+    console.log('  ✅ user indexes');
+    await pool.query(CREATE_USER_UPDATED_AT_TRIGGER);
+    console.log('  ✅ users updated_at trigger');
 
     console.log('Migrations complete.');
   } catch (err) {
