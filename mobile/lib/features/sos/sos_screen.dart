@@ -23,7 +23,7 @@ class SosScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AfterMath SOS'),
+        title: const Text('CEAL: Civic Emergency Access Layer'),
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
