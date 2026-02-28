@@ -12,11 +12,19 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { Pool } from 'pg';
-import { signupSchema, aadhaarVerifySchema, aadhaarQrVerifySchema } from '../models/user.js';
+import {
+  signupSchema,
+  aadhaarVerifySchema,
+  aadhaarQrVerifySchema,
+  manualKycSchema,
+} from '../models/user.js';
 import { UserRepository } from '../db/user-repository.js';
 import { verifyAadhaarProof, computeExpectedSignalHash } from '../services/aadhaar-zk.js';
 import { signToken, requireAuth, optionalAuth } from '../middleware/auth.js';
 import { logger } from '../logger.js';
+import { randomUUID, createHash } from 'node:crypto';
+import { z } from 'zod';
+import { decodeQrFromRgba, parseAadhaarQrPayload } from '../services/aadhaar-qr-photo.js';
 
 export function createOnboardingRouter(pool: Pool): Router {
   const router = Router();
@@ -118,6 +126,159 @@ export function createOnboardingRouter(pool: Pool): Router {
   });
 
   // -----------------------------------------------------------------------
+  // POST /onboarding/scan-aadhaar-photo
+  // -----------------------------------------------------------------------
+  //
+  // TS-native photo QR flow:
+  // - accepts JSON upload from mobile (`rgbaBase64`, `width`, `height`, `userId`)
+  // - decodes QR with jsQR
+  // - parses Aadhaar payload (Self SDK adapter + XML fallback)
+  // - stores scan artifact + marks KYC verified
+  //
+  router.post('/scan-aadhaar-photo', async (req: Request, res: Response) => {
+    try {
+      const inputCheck = z.object({
+        userId: z.string().uuid('Invalid user ID'),
+        width: z.number().int().positive().max(4096),
+        height: z.number().int().positive().max(4096),
+        rgbaBase64: z.string().min(1, 'RGBA image payload is required'),
+        source: z.string().max(50).default('photo'),
+      }).safeParse(req.body);
+      if (!inputCheck.success) {
+        res.status(400).json({
+          error: 'Invalid Aadhaar photo payload',
+          details: inputCheck.error.flatten().fieldErrors,
+        });
+        return;
+      }
+
+      const user = await userRepo.findById(inputCheck.data.userId);
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      const rgbaBuffer = decodeBase64(inputCheck.data.rgbaBase64);
+      const expectedLen = inputCheck.data.width * inputCheck.data.height * 4;
+      if (rgbaBuffer.length !== expectedLen) {
+        res.status(400).json({
+          error: `Invalid RGBA payload size: expected ${expectedLen} bytes, got ${rgbaBuffer.length}`,
+        });
+        return;
+      }
+
+      const decoded = decodeQrFromRgba(
+        inputCheck.data.width,
+        inputCheck.data.height,
+        new Uint8ClampedArray(rgbaBuffer.buffer, rgbaBuffer.byteOffset, rgbaBuffer.byteLength),
+      );
+      const extracted = await parseAadhaarQrPayload(decoded.rawPayload);
+      const imageSha256 = createHash('sha256').update(rgbaBuffer).digest('hex');
+
+      await pool.query(
+        `INSERT INTO aadhaar_qr_scans (id, user_id, source, image_sha256, image_data, decoded_xml, processed_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          randomUUID(),
+          inputCheck.data.userId,
+          inputCheck.data.source,
+          imageSha256,
+          rgbaBuffer,
+          decoded.rawPayload,
+          'ts-backend-jsqr',
+        ],
+      );
+
+      if (user.kycStatus === 'verified') {
+        res.status(200).json({ user, extracted, message: 'Scan stored; KYC already verified' });
+        return;
+      }
+      if (user.kycStatus === 'rejected') {
+        res.status(400).json({
+          error: 'KYC was previously rejected. Please contact support.',
+        });
+        return;
+      }
+
+      const ageAbove18 = computeAgeAbove18(extracted.dob, extracted.yob);
+      const updatedUser = await userRepo.updateKycVerifiedFromQr(
+        inputCheck.data.userId,
+        ageAbove18,
+        extracted.gender,
+        extracted.state,
+      );
+
+      if (!updatedUser) {
+        const currentUser = await userRepo.findById(inputCheck.data.userId);
+        if (currentUser?.kycStatus === 'verified') {
+          res.status(200).json({ user: currentUser, extracted, message: 'Scan stored; KYC already verified' });
+          return;
+        }
+        res.status(500).json({ error: 'Scan stored but failed to update KYC status' });
+        return;
+      }
+
+      logger.info(`Aadhaar photo scan: user ${inputCheck.data.userId} KYC verified`);
+      res.status(200).json({
+        user: updatedUser,
+        extracted,
+        decodedXml: decoded.rawPayload,
+        message: 'Aadhaar photo processed and stored successfully',
+      });
+    } catch (err) {
+      logger.error('Aadhaar photo scan error', err);
+      const message = err instanceof Error ? err.message : 'Internal server error';
+      const status = message.includes('No QR code detected') ? 422 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // POST /onboarding/manual-kyc
+  // -----------------------------------------------------------------------
+  //
+  // Manual fallback when Aadhaar scan is skipped.
+  // Persists submitted details for audit/manual review.
+  //
+  router.post('/manual-kyc', async (req: Request, res: Response) => {
+    try {
+      const parsed = manualKycSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          error: 'Invalid manual KYC payload',
+          details: parsed.error.flatten().fieldErrors,
+        });
+        return;
+      }
+
+      const data = parsed.data;
+      const user = await userRepo.findById(data.userId);
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      await userRepo.saveManualKycSubmission(data);
+      const updated = await userRepo.updateUserFromManualKyc(
+        data.userId,
+        data.name,
+        data.age >= 18,
+        data.sex,
+        data.state,
+      );
+
+      logger.info(`Manual KYC submitted: user ${data.userId}`);
+      res.status(200).json({
+        user: updated ?? user,
+        message: 'Manual KYC details saved successfully',
+      });
+    } catch (err) {
+      logger.error('Manual KYC submission error', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // -----------------------------------------------------------------------
   // POST /onboarding/verify-aadhaar-qr
   // -----------------------------------------------------------------------
   //
@@ -157,7 +318,7 @@ export function createOnboardingRouter(pool: Pool): Router {
         return;
       }
 
-      const extracted = parseAadhaarQrXml(data.rawXml);
+      const extracted = await parseAadhaarQrPayload(data.rawXml);
       const ageAbove18 = computeAgeAbove18(extracted.dob, extracted.yob);
 
       const updatedUser = await userRepo.updateKycVerifiedFromQr(
@@ -385,38 +546,6 @@ export function createOnboardingRouter(pool: Pool): Router {
   return router;
 }
 
-function parseAadhaarQrXml(raw: string): {
-  name: string | null;
-  gender: string | null;
-  state: string | null;
-  dob: string | null;
-  yob: string | null;
-} {
-  const xml = extractXml(raw);
-  const nodeMatch = xml.match(/<\s*PrintLetterBarcodeData\b([^>]*)\/?>/i);
-  if (!nodeMatch || !nodeMatch[1]) {
-    throw new Error('Aadhaar QR XML must contain PrintLetterBarcodeData');
-  }
-
-  const attrs = new Map<string, string>();
-  const attrRegex = /([a-zA-Z_:][\w:.-]*)\s*=\s*"([^"]*)"/g;
-  let m: RegExpExecArray | null;
-  while ((m = attrRegex.exec(nodeMatch[1])) !== null) {
-    const key = m[1];
-    const value = m[2];
-    if (!key) continue;
-    attrs.set(key.toLowerCase(), decodeXmlEntities(value ?? ''));
-  }
-
-  return {
-    name: normalizeField(attrs.get('name')),
-    gender: normalizeField(attrs.get('gender')),
-    state: normalizeField(attrs.get('state')),
-    dob: normalizeField(attrs.get('dob')),
-    yob: normalizeField(attrs.get('yob')),
-  };
-}
-
 function computeAgeAbove18(dob: string | null, yob: string | null): boolean {
   const now = new Date();
 
@@ -453,37 +582,11 @@ function parseAadhaarDob(dob: string): Date | null {
   return null;
 }
 
-function extractXml(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith('<')) return trimmed;
-
-  try {
-    const decoded = decodeURIComponent(trimmed);
-    if (decoded.includes('<')) return decoded;
-  } catch {
-    // Non URI-encoded payload; fall through.
+function decodeBase64(value: string): Buffer {
+  const cleaned = value.replace(/^data:[^;]+;base64,/, '');
+  const out = Buffer.from(cleaned, 'base64');
+  if (out.length === 0) {
+    throw new Error('Image payload is empty');
   }
-
-  const start = trimmed.indexOf('<');
-  const end = trimmed.lastIndexOf('>');
-  if (start >= 0 && end > start) {
-    return trimmed.slice(start, end + 1);
-  }
-
-  throw new Error('No XML found in QR payload');
-}
-
-function decodeXmlEntities(value: string): string {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
-}
-
-function normalizeField(value: string | undefined): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  return out;
 }

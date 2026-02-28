@@ -12,6 +12,7 @@ import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/features/alerts/alert_list_screen.dart';
 import 'package:aftermath/features/alerts/alerts_notifier.dart';
 import 'package:aftermath/features/onboarding/aadhaar_qr_screen.dart';
+import 'package:aftermath/features/onboarding/manual_kyc_form_screen.dart';
 import 'package:aftermath/features/onboarding/permission_screen.dart';
 import 'package:aftermath/features/onboarding/welcome_screen.dart';
 import 'package:aftermath/features/settings/settings_screen.dart';
@@ -42,7 +43,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-enum _OnboardingStep { welcome, permissions, aadhaarQr, home }
+enum _OnboardingStep { welcome, permissions, aadhaarQr, manualKyc, home }
 
 class AppBootstrapScreen extends ConsumerStatefulWidget {
   const AppBootstrapScreen({super.key});
@@ -133,6 +134,18 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
         );
       case _OnboardingStep.aadhaarQr:
         return AadhaarQrScreen(
+          onComplete: () {
+            setState(() => _step = _OnboardingStep.home);
+          },
+          onSkip: () {
+            setState(() => _step = _OnboardingStep.manualKyc);
+          },
+        );
+      case _OnboardingStep.manualKyc:
+        return ManualKycFormScreen(
+          onBackToScan: () {
+            setState(() => _step = _OnboardingStep.aadhaarQr);
+          },
           onComplete: () {
             setState(() => _step = _OnboardingStep.home);
           },

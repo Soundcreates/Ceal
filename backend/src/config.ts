@@ -10,6 +10,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
+  HOST: z.string().default('0.0.0.0'),
   CORS_ORIGIN: z.string().default('http://localhost:3001'),
 
   // Database
@@ -44,6 +45,7 @@ const envSchema = z.object({
   // Set to 'true' to verify against the test UIDAI public key hash
   // (for development/staging). Defaults to 'false' (production keys).
   USE_TEST_AADHAAR: z.enum(['true', 'false']).default('false'),
+
 });
 
 export type Env = z.infer<typeof envSchema>;

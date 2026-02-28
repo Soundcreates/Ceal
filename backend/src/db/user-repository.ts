@@ -10,7 +10,13 @@
  */
 
 import type { Pool as PgPool } from 'pg';
-import type { User, SignupPayload, EmergencyContact, MedicalProfile } from '../models/user.js';
+import type {
+  User,
+  SignupPayload,
+  EmergencyContact,
+  MedicalProfile,
+  ManualKycPayload,
+} from '../models/user.js';
 import { randomUUID } from 'node:crypto';
 import { generateBleUid } from '../services/uid-resolver.js';
 
@@ -200,6 +206,53 @@ export class UserRepository {
       allergies: profile.allergies ?? null,
       conditions: profile.conditions ?? null,
     };
+  }
+
+  /**
+   * Persist manual KYC details when Aadhaar scanning is skipped.
+   */
+  async saveManualKycSubmission(data: ManualKycPayload): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO manual_kyc_submissions
+         (id, user_id, name, age, sex, dob, yob, state, district, pincode, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'manual_form')`,
+      [
+        randomUUID(),
+        data.userId,
+        data.name,
+        data.age,
+        data.sex,
+        data.dob ?? null,
+        data.yob ?? null,
+        data.state,
+        data.district,
+        data.pincode,
+      ],
+    );
+  }
+
+  /**
+   * Apply a minimal subset of manual KYC details to users table.
+   * KYC status remains pending for manual-review flow.
+   */
+  async updateUserFromManualKyc(
+    userId: string,
+    name: string,
+    ageAbove18: boolean,
+    sex: string,
+    state: string,
+  ): Promise<User | null> {
+    const { rows } = await this.pool.query(
+      `UPDATE users
+       SET name = COALESCE(NULLIF($2, ''), name),
+           aadhaar_age_above_18 = $3,
+           aadhaar_gender = $4,
+           aadhaar_state = $5
+       WHERE id = $1
+       RETURNING *`,
+      [userId, name, ageAbove18, sex, state],
+    );
+    return rows.length > 0 ? this.rowToUser(rows[0]) : null;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

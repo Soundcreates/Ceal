@@ -49,6 +49,7 @@ dependencies:
 
   # QR scanner
   mobile_scanner: ^6.0.2
+  image_picker: ^1.1.2
 
   # Environment variables (.env file)
   flutter_dotenv: ^5.2.1

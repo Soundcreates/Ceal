@@ -124,6 +124,31 @@ export const aadhaarQrVerifySchema = z.object({
 
 export type AadhaarQrVerifyPayload = z.infer<typeof aadhaarQrVerifySchema>;
 
+/**
+ * Validates POST /onboarding/manual-kyc body.
+ *
+ * Used when Aadhaar scan is skipped and user submits details manually.
+ */
+export const manualKycSchema = z.object({
+  userId: z
+    .string()
+    .uuid('Invalid user ID'),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Name is required')
+    .max(200),
+  age: z.number().int().min(1).max(120),
+  sex: z.enum(['M', 'F', 'T']),
+  dob: z.string().trim().max(20).optional(),
+  yob: z.string().trim().regex(/^\d{4}$/).optional(),
+  state: z.string().trim().min(1).max(120),
+  district: z.string().trim().min(1).max(120),
+  pincode: z.string().trim().regex(/^\d{6}$/),
+});
+
+export type ManualKycPayload = z.infer<typeof manualKycSchema>;
+
 // ---------------------------------------------------------------------------
 // TypeScript interfaces — DB row representations
 // ---------------------------------------------------------------------------

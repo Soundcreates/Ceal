@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -12,9 +13,14 @@ import 'package:aftermath/models/aadhaar_qr_data.dart';
 import 'package:aftermath/providers.dart';
 
 class AadhaarQrScreen extends ConsumerStatefulWidget {
-  const AadhaarQrScreen({super.key, required this.onComplete});
+  const AadhaarQrScreen({
+    super.key,
+    required this.onComplete,
+    required this.onSkip,
+  });
 
   final VoidCallback onComplete;
+  final VoidCallback onSkip;
 
   @override
   ConsumerState<AadhaarQrScreen> createState() => _AadhaarQrScreenState();
@@ -23,6 +29,7 @@ class AadhaarQrScreen extends ConsumerStatefulWidget {
 class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
   final _scannerController = MobileScannerController();
   final _userIdController = TextEditingController(text: Env.onboardingUserId);
+  final _imagePicker = ImagePicker();
 
   bool _cameraGranted = false;
   bool _submitting = false;
@@ -122,17 +129,72 @@ class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
     });
   }
 
+  Future<void> _captureAndUploadPhoto() async {
+    final userId = _userIdController.text.trim();
+    if (userId.isEmpty) {
+      setState(() => _error = 'User ID is required before capturing photo.');
+      return;
+    }
+
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+        imageQuality: 100,
+      );
+      if (picked == null) return;
+
+      setState(() {
+        _submitting = true;
+        _error = null;
+      });
+
+      final bytes = await picked.readAsBytes();
+      final backend = ref.read(backendServiceProvider);
+      final result = await backend.submitAadhaarQrPhoto(
+        userId: userId,
+        imageBytes: bytes,
+        filename: picked.name,
+      );
+
+      if (!mounted) return;
+      setState(() => _submitting = false);
+
+      if (!result.success) {
+        setState(() => _error = result.error ?? 'Failed to process QR photo.');
+        return;
+      }
+
+      if (result.decodedXml != null && result.decodedXml!.trim().isNotEmpty) {
+        try {
+          final parsed = AadhaarQrData.fromQrPayload(result.decodedXml!);
+          setState(() => _parsed = parsed);
+        } catch (_) {
+          // Keep success flow even if local parse preview fails.
+        }
+      }
+
+      if (!mounted) return;
+      widget.onComplete();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = 'Photo capture failed: $e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(32, 20, 32, 24),
           child: Column(
             children: [
-              const Spacer(),
               Icon(Icons.qr_code_scanner, size: 72, color: AppTheme.sosColor),
               const SizedBox(height: 24),
               Text(
@@ -151,6 +213,16 @@ class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
               const SizedBox(height: 24),
               _buildScannerArea(),
               const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: _submitting ? null : _captureAndUploadPhoto,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Capture QR Photo'),
+                ),
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _userIdController,
                 decoration: const InputDecoration(
@@ -168,7 +240,7 @@ class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
                   textAlign: TextAlign.center,
                 ),
               ],
-              const Spacer(),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -195,7 +267,7 @@ class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
               ),
               const SizedBox(height: 8),
               TextButton(
-                onPressed: _submitting ? null : widget.onComplete,
+                onPressed: _submitting ? null : widget.onSkip,
                 child: const Text('Skip for now'),
               ),
               const SizedBox(height: 24),

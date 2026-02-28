@@ -8,9 +8,16 @@ import { logger } from '../logger.js';
 
 const { Pool } = pg;
 
+const dbUrl = new URL(env.DATABASE_URL);
+const sslMode = dbUrl.searchParams.get('sslmode')?.toLowerCase();
+const useSsl =
+  sslMode === 'require' ||
+  sslMode === 'verify-ca' ||
+  sslMode === 'verify-full';
+
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  ssl: false,
+  ssl: useSsl ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,

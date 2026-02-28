@@ -12,8 +12,8 @@ import { cancelAllTimers } from './services/escalation.js';
 
 const app = createApp(pool);
 
-const server = app.listen(env.PORT, () => {
-  logger.info(`AfterMath backend listening on port ${env.PORT} [${env.NODE_ENV}]`);
+const server = app.listen(env.PORT, env.HOST, () => {
+  logger.info(`AfterMath backend listening on ${env.HOST}:${env.PORT} [${env.NODE_ENV}]`);
 });
 
 // ---------------------------------------------------------------------------

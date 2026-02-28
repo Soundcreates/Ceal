@@ -122,6 +122,49 @@ END;
 $$;
 `;
 
+const CREATE_AADHAAR_QR_SCANS = `
+CREATE TABLE IF NOT EXISTS aadhaar_qr_scans (
+  id            UUID PRIMARY KEY,
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source        TEXT NOT NULL DEFAULT 'photo',
+  image_sha256  TEXT NOT NULL,
+  image_data    BYTEA NOT NULL,
+  decoded_xml   TEXT NOT NULL,
+  processed_by  TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+const CREATE_AADHAAR_QR_SCANS_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_aadhaar_qr_scans_user    ON aadhaar_qr_scans (user_id);
+CREATE INDEX IF NOT EXISTS idx_aadhaar_qr_scans_created ON aadhaar_qr_scans (created_at);
+CREATE INDEX IF NOT EXISTS idx_aadhaar_qr_scans_sha     ON aadhaar_qr_scans (image_sha256);
+`;
+
+const CREATE_MANUAL_KYC_SUBMISSIONS = `
+CREATE TABLE IF NOT EXISTS manual_kyc_submissions (
+  id            UUID PRIMARY KEY,
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  age           INTEGER NOT NULL CHECK (age >= 1 AND age <= 120),
+  sex           TEXT NOT NULL CHECK (sex IN ('M', 'F', 'T')),
+  dob           TEXT,
+  yob           TEXT,
+  state         TEXT NOT NULL,
+  district      TEXT NOT NULL,
+  pincode       TEXT NOT NULL,
+  source        TEXT NOT NULL DEFAULT 'manual_form',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+const CREATE_MANUAL_KYC_SUBMISSIONS_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_manual_kyc_submissions_user
+  ON manual_kyc_submissions (user_id);
+CREATE INDEX IF NOT EXISTS idx_manual_kyc_submissions_created
+  ON manual_kyc_submissions (created_at);
+`;
+
 async function migrate(): Promise<void> {
   const dbUrl = new URL(env.DATABASE_URL);
   const sslMode = dbUrl.searchParams.get('sslmode')?.toLowerCase();
@@ -155,6 +198,14 @@ async function migrate(): Promise<void> {
     console.log('  ✅ user indexes');
     await pool.query(CREATE_USER_UPDATED_AT_TRIGGER);
     console.log('  ✅ users updated_at trigger');
+    await pool.query(CREATE_AADHAAR_QR_SCANS);
+    console.log('  ✅ aadhaar_qr_scans table');
+    await pool.query(CREATE_AADHAAR_QR_SCANS_INDEXES);
+    console.log('  ✅ aadhaar_qr_scans indexes');
+    await pool.query(CREATE_MANUAL_KYC_SUBMISSIONS);
+    console.log('  ✅ manual_kyc_submissions table');
+    await pool.query(CREATE_MANUAL_KYC_SUBMISSIONS_INDEXES);
+    console.log('  ✅ manual_kyc_submissions indexes');
 
     console.log('Migrations complete.');
   } catch (err) {

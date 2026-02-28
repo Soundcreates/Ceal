@@ -118,4 +118,6 @@ class AadhaarQrData {
 
     throw const FormatException('QR payload did not contain valid XML');
   }
+
+  
 }
