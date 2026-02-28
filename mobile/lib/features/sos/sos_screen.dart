@@ -83,7 +83,11 @@ class SosScreen extends ConsumerWidget {
           color: Colors.deepOrange,
         );
       case SosPhase.sent:
-        return _SentView(onReset: notifier.reset);
+        return _SentView(
+          onReset: notifier.reset,
+          backendConfirmed: sosState.backendConfirmed,
+          smsSent: sosState.smsSent,
+        );
       case SosPhase.cancelled:
         return const _StatusView(
           icon: Icons.cancel_outlined,
@@ -217,12 +221,14 @@ class _BroadcastingView extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 56,
-            height: 56,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+          RepaintBoundary(
+            child: SizedBox(
+              width: 56,
+              height: 56,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -355,12 +361,14 @@ class _StatusView extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 56,
-          height: 56,
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+        RepaintBoundary(
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
           ),
         ),
         const SizedBox(height: 24),
@@ -377,22 +385,45 @@ class _StatusView extends StatelessWidget {
 }
 
 class _SentView extends StatelessWidget {
-  const _SentView({required this.onReset});
+  const _SentView({
+    required this.onReset,
+    required this.backendConfirmed,
+    required this.smsSent,
+  });
 
   final VoidCallback onReset;
+  final bool backendConfirmed;
+  final bool smsSent;
 
   @override
   Widget build(BuildContext context) {
+    final String subtitle;
+    if (backendConfirmed) {
+      subtitle = 'Alert uploaded to server and broadcast to nearby devices.';
+    } else if (smsSent) {
+      subtitle = 'Server unreachable — SMS sent to emergency contacts. Alert queued and will upload when connection returns.';
+    } else {
+      subtitle = 'Broadcast to nearby BLE devices. Alert queued — will upload to server when connection returns.';
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.check_circle, size: 72, color: Colors.green),
+        Icon(
+          backendConfirmed ? Icons.check_circle : Icons.check_circle_outline,
+          size: 72,
+          color: backendConfirmed ? Colors.green : Colors.amber,
+        ),
         const SizedBox(height: 16),
         Text('SOS Sent', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 8),
-        const Text(
-          'Nearby devices and/or server were notified.',
-          textAlign: TextAlign.center,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70),
+          ),
         ),
         const SizedBox(height: 24),
         OutlinedButton(
