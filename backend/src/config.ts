@@ -18,6 +18,9 @@ const envSchema = z.object({
   // BLE encryption secret (hex, 64 chars = 32 bytes)
   BLE_ENCRYPTION_SECRET: z.string().min(16),
 
+  // Server secret for deterministic BLE UID generation
+  SERVER_SECRET: z.string().min(16).default('aftermath-default-server-secret-change-me'),
+
   // Twilio
   TWILIO_ACCOUNT_SID: z.string().startsWith('AC'),
   TWILIO_AUTH_TOKEN: z.string().min(1),
@@ -36,6 +39,11 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),
+
+  // Aadhaar ZK verification (Anon Aadhaar)
+  // Set to 'true' to verify against the test UIDAI public key hash
+  // (for development/staging). Defaults to 'false' (production keys).
+  USE_TEST_AADHAAR: z.enum(['true', 'false']).default('false'),
 });
 
 export type Env = z.infer<typeof envSchema>;

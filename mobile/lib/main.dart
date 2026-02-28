@@ -78,11 +78,12 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
     final relay = ref.read(meshRelayProvider);
     final alerts = ref.read(alertsNotifierProvider.notifier);
 
-    scanner.onPacketReceived = reassembler.addPacket;
+    // Scanner feeds CORE packets directly into the reassembler (V2: includes RSSI).
     scanner.onCorePacketReceived = reassembler.addCorePacket;
 
-    reassembler.onSosReassembled = (event, deviceId) {
-      relay.onSosReceived(event, deviceId);
+    // Reassembler feeds completed SOS events into relay + alerts (V2: includes RSSI).
+    reassembler.onSosReassembled = (event, deviceId, rssi) {
+      relay.onSosReceived(event, deviceId, rssi);
       alerts.addAlert(event);
     };
 

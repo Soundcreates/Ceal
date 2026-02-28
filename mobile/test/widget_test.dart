@@ -1,4 +1,4 @@
-// AfterMath unit and widget tests.
+// AfterMath unit and widget tests — V2 privacy-first protocol.
 
 import 'dart:typed_data';
 
@@ -63,95 +63,94 @@ void main() {
     });
   });
 
-  group('SosEvent GPS encoding', () {
-    test('compact payload round-trip (int32 × 1e7)', () {
+  group('SosEvent V2 JSON', () {
+    test('round-trip serialisation with all fields', () {
+      final uid = Uint8List.fromList([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x01]);
       final event = SosEvent(
-        id: 'test-1',
-        deviceIdHash: Uint8List.fromList([0xAB, 0xCD]),
-        latitude: 28.6139,
-        longitude: 77.2090,
-        timestamp: DateTime.now().toUtc(),
-      );
-
-      final payload = event.toCompactPayload();
-      expect(payload.length, kBlePayloadSize);
-      expect(kBlePayloadSize, 10);
-
-      final decoded = SosEvent.fromCompactPayload(payload);
-      // int32 × 1e7 → ~1 cm precision, tolerance 0.0000001.
-      expect(decoded.latitude, closeTo(28.6139, 0.0000001));
-      expect(decoded.longitude, closeTo(77.2090, 0.0000001));
-      expect(decoded.deviceIdHash, Uint8List.fromList([0xAB, 0xCD]));
-    });
-
-    test('handles negative coordinates', () {
-      final event = SosEvent(
-        id: 'test-2',
-        deviceIdHash: Uint8List.fromList([0x00, 0x01]),
-        latitude: -33.8688,
-        longitude: -151.2093,
-        timestamp: DateTime.now().toUtc(),
-      );
-
-      final payload = event.toCompactPayload();
-      final decoded = SosEvent.fromCompactPayload(payload);
-      expect(decoded.latitude, closeTo(-33.8688, 0.0000001));
-      expect(decoded.longitude, closeTo(-151.2093, 0.0000001));
-    });
-
-    test('handles zero coordinates', () {
-      final event = SosEvent(
-        id: 'test-zero',
-        deviceIdHash: Uint8List.fromList([0, 0]),
-        latitude: 0.0,
-        longitude: 0.0,
-        timestamp: DateTime.now().toUtc(),
-      );
-
-      final payload = event.toCompactPayload();
-      final decoded = SosEvent.fromCompactPayload(payload);
-      expect(decoded.latitude, 0.0);
-      expect(decoded.longitude, 0.0);
-    });
-
-    test('handles extreme coordinates', () {
-      final event = SosEvent(
-        id: 'test-extreme',
-        deviceIdHash: Uint8List.fromList([0xFF, 0xFF]),
-        latitude: 90.0,
-        longitude: -180.0,
-        timestamp: DateTime.now().toUtc(),
-      );
-
-      final payload = event.toCompactPayload();
-      final decoded = SosEvent.fromCompactPayload(payload);
-      expect(decoded.latitude, closeTo(90.0, 0.0000001));
-      expect(decoded.longitude, closeTo(-180.0, 0.0000001));
-    });
-  });
-
-  group('SosEvent JSON', () {
-    test('round-trip serialisation', () {
-      final event = SosEvent(
-        id: 'json-test',
-        deviceIdHash: Uint8List.fromList([0x12, 0x34]),
-        latitude: 40.7128,
-        longitude: -74.0060,
+        id: 'uid:aabbccddee01:42',
+        bleUid: uid,
+        flags: 0x01,
+        sequence: 42,
         timestamp: DateTime.utc(2026, 2, 28, 12, 0),
         status: SosStatus.active,
         relayHops: 2,
+        receiverLocation: const ReceiverLocation(lat: 19.076, lon: 72.8777),
+        rssi: -65,
         message: 'Help!',
       );
 
       final json = event.toJson();
-      final restored = SosEvent.fromJson(json);
+      expect(json['bleUid'], 'aabbccddee01');
+      expect(json['flags'], 0x01);
+      expect(json['sequence'], 42);
+      expect(json['receiverLocation'], isNotNull);
+      expect(json['rssi'], -65);
 
-      expect(restored.id, 'json-test');
-      expect(restored.latitude, 40.7128);
-      expect(restored.longitude, -74.0060);
+      final restored = SosEvent.fromJson(json);
+      expect(restored.id, 'uid:aabbccddee01:42');
+      expect(restored.bleUidHex, 'aabbccddee01');
+      expect(restored.flags, 0x01);
+      expect(restored.sequence, 42);
       expect(restored.status, SosStatus.active);
       expect(restored.relayHops, 2);
+      expect(restored.receiverLocation!.lat, 19.076);
+      expect(restored.receiverLocation!.lon, 72.8777);
+      expect(restored.rssi, -65);
       expect(restored.message, 'Help!');
+    });
+
+    test('round-trip without optional fields', () {
+      final uid = Uint8List.fromList([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
+      final event = SosEvent(
+        id: 'uid:010203040506:0',
+        bleUid: uid,
+        flags: 0x00,
+        sequence: 0,
+        timestamp: DateTime.utc(2026, 1, 1),
+      );
+
+      final json = event.toJson();
+      expect(json.containsKey('receiverLocation'), false);
+      expect(json.containsKey('rssi'), false);
+      expect(json.containsKey('message'), false);
+
+      final restored = SosEvent.fromJson(json);
+      expect(restored.receiverLocation, isNull);
+      expect(restored.rssi, isNull);
+      expect(restored.message, isNull);
+    });
+
+    test('bleUidHex getter returns lowercase hex', () {
+      final uid = Uint8List.fromList([0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45]);
+      final event = SosEvent(
+        id: 'test',
+        bleUid: uid,
+        flags: 0,
+        sequence: 0,
+        timestamp: DateTime.now(),
+      );
+      expect(event.bleUidHex, 'abcdef012345');
+    });
+  });
+
+  group('ReceiverLocation', () {
+    test('toJson / fromJson round-trip', () {
+      const loc = ReceiverLocation(lat: -33.8688, lon: 151.2093, accuracy: 5.5);
+      final json = loc.toJson();
+      expect(json['lat'], -33.8688);
+      expect(json['lon'], 151.2093);
+      expect(json['accuracy'], 5.5);
+
+      final restored = ReceiverLocation.fromJson(json);
+      expect(restored.lat, -33.8688);
+      expect(restored.lon, 151.2093);
+      expect(restored.accuracy, 5.5);
+    });
+
+    test('omits accuracy when null', () {
+      const loc = ReceiverLocation(lat: 0.0, lon: 0.0);
+      final json = loc.toJson();
+      expect(json.containsKey('accuracy'), false);
     });
   });
 
@@ -235,41 +234,66 @@ void main() {
     });
   });
 
-  group('CoreSosPacket', () {
-    test('round-trip serialisation (20 bytes)', () {
+  group('CRC8', () {
+    test('computeCrc8 produces an 8-bit value', () {
+      final data = Uint8List.fromList([0x01, 0x02, 0x03]);
+      final crc = computeCrc8(data);
+      expect(crc >= 0 && crc <= 0xFF, true);
+    });
+
+    test('verifyCrc8 accepts valid data + CRC', () {
+      final data = Uint8List.fromList([0x10, 0x20, 0x30, 0x40]);
+      final crc = computeCrc8(data);
+      final withCrc = Uint8List(5);
+      withCrc.setRange(0, 4, data);
+      withCrc[4] = crc;
+      expect(verifyCrc8(withCrc), true);
+    });
+
+    test('verifyCrc8 rejects tampered data', () {
+      final data = Uint8List.fromList([0x10, 0x20, 0x30, 0x40]);
+      final crc = computeCrc8(data);
+      final withCrc = Uint8List(5);
+      withCrc.setRange(0, 4, data);
+      withCrc[4] = crc;
+      // Tamper
+      withCrc[0] = 0xFF;
+      expect(verifyCrc8(withCrc), false);
+    });
+  });
+
+  group('CoreSosPacket V2', () {
+    test('round-trip serialisation (10 bytes)', () {
+      final uid = Uint8List.fromList([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x01]);
       final packet = CoreSosPacket(
         version: kCorePacketVersion,
         flags: CoreSosPacket.buildFlags(sosActive: true),
-        deviceId: 12345,
-        latitude: 28.6139,
-        longitude: 77.2090,
-        timestamp: 1700000000,
+        bleUid: uid,
+        sequence: 42,
       );
 
       final bytes = packet.toBytes();
       expect(bytes.length, kCorePacketSize);
-      expect(kCorePacketSize, 20);
+      expect(kCorePacketSize, 10);
 
       final decoded = CoreSosPacket.fromBytes(bytes);
       expect(decoded.version, kCorePacketVersion);
-      expect(decoded.deviceId, 12345);
-      expect(decoded.latitude, closeTo(28.6139, 0.0000001));
-      expect(decoded.longitude, closeTo(77.2090, 0.0000001));
-      expect(decoded.timestamp, 1700000000);
+      expect(decoded.bleUidHex, 'aabbccddee01');
+      expect(decoded.sequence, 42);
+      expect(decoded.flags, 0x01);
     });
 
-    test('CRC16 validation rejects tampered bytes', () {
+    test('CRC8 validation rejects tampered bytes', () {
+      final uid = Uint8List.fromList([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
       final packet = CoreSosPacket(
         version: kCorePacketVersion,
         flags: 0x01,
-        deviceId: 999,
-        latitude: -33.8688,
-        longitude: 151.2093,
-        timestamp: 1700000000,
+        bleUid: uid,
+        sequence: 99,
       );
 
       final bytes = packet.toBytes();
-      // Tamper with deviceId byte.
+      // Tamper with uid byte.
       bytes[3] = 0xFF;
       expect(
         () => CoreSosPacket.fromBytes(bytes),
@@ -277,19 +301,34 @@ void main() {
       );
     });
 
-    test('handles negative coordinates in CORE packet', () {
+    test('sequence wraps at 255', () {
+      final uid = Uint8List.fromList([0, 0, 0, 0, 0, 0]);
       final packet = CoreSosPacket(
         version: kCorePacketVersion,
         flags: 0x00,
-        deviceId: 42,
-        latitude: -90.0,
-        longitude: -180.0,
-        timestamp: 0,
+        bleUid: uid,
+        sequence: 255,
       );
 
       final decoded = CoreSosPacket.fromBytes(packet.toBytes());
-      expect(decoded.latitude, closeTo(-90.0, 0.0000001));
-      expect(decoded.longitude, closeTo(-180.0, 0.0000001));
+      expect(decoded.sequence, 255);
+    });
+
+    test('bleUidHex getter returns lowercase hex', () {
+      final uid = Uint8List.fromList([0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45]);
+      final packet = CoreSosPacket(
+        version: kCorePacketVersion,
+        flags: 0x00,
+        bleUid: uid,
+        sequence: 0,
+      );
+      expect(packet.bleUidHex, 'abcdef012345');
+    });
+
+    test('buildFlags sets SOS and medical bits', () {
+      final flagsBoth = CoreSosPacket.buildFlags(sosActive: true, medicalEmergency: true);
+      expect(flagsBoth & 0x01, 0x01); // bit 0 = SOS
+      expect(flagsBoth & 0x02, 0x02); // bit 1 = medical
     });
   });
 }

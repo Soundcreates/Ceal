@@ -1,18 +1,16 @@
-/// Core SOS Packet — the 20-byte self-contained emergency broadcast.
+/// Core SOS Packet V2 — the 10-byte privacy-first emergency broadcast.
 ///
 /// This is the PRIMARY packet format. Every SOS transmission begins with a
-/// burst of these packets so that a single reception gives the receiver all
-/// critical information (identity, location, time).
+/// burst of these packets. GPS is NOT included — the receiver attaches its
+/// own location when forwarding to the backend.
 ///
-/// Layout (20 bytes, big-endian):
+/// Layout (10 bytes, big-endian):
 /// ```
-///  Byte  0     : version          (uint8,  protocol version)
-///  Byte  1     : flags            (uint8,  see [buildFlags])
-///  Bytes 2-5   : deviceId         (uint32, hashed user/device ID)
-///  Bytes 6-9   : latitude         (int32,  value × 1e7)
-///  Bytes 10-13 : longitude        (int32,  value × 1e7)
-///  Bytes 14-17 : timestamp        (uint32, Unix epoch seconds)
-///  Bytes 18-19 : CRC16-CCITT      (uint16, over bytes 0-17)
+///  Byte  0     : version    (uint8,  protocol version = 0x02)
+///  Byte  1     : flags      (uint8,  see [buildFlags])
+///  Bytes 2-7   : bleUid     (6 bytes, static pseudonymous BLE UID)
+///  Byte  8     : sequence   (uint8,  wrapping counter 0-255)
+///  Byte  9     : CRC8       (uint8,  polynomial 0x07 over bytes 0-8)
 /// ```
 library;
 
@@ -21,40 +19,32 @@ import 'dart:typed_data';
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/core/crc16.dart';
 
-/// Current protocol version.
-const int kCorePacketVersion = 1;
+/// Current protocol version for V2 packets.
+const int kCorePacketVersion = 2;
 
 class CoreSosPacket {
   const CoreSosPacket({
     this.version = kCorePacketVersion,
     required this.flags,
-    required this.deviceId,
-    required this.latitude,
-    required this.longitude,
-    required this.timestamp,
+    required this.bleUid,
+    required this.sequence,
   });
 
   // -----------------------------------------------------------------------
   // Fields
   // -----------------------------------------------------------------------
 
-  /// Protocol version.
+  /// Protocol version (0x02 for V2).
   final int version;
 
   /// Flags bit-field: bit 0 = SOS active, bit 1 = medical emergency.
   final int flags;
 
-  /// 4-byte hashed device/user identifier.
-  final int deviceId;
+  /// Static 6-byte pseudonymous BLE UID.
+  final Uint8List bleUid;
 
-  /// GPS latitude in decimal degrees.
-  final double latitude;
-
-  /// GPS longitude in decimal degrees.
-  final double longitude;
-
-  /// UTC Unix epoch seconds when the SOS was triggered.
-  final int timestamp;
+  /// Wrapping sequence counter (0-255).
+  final int sequence;
 
   // -----------------------------------------------------------------------
   // Convenience getters
@@ -63,49 +53,50 @@ class CoreSosPacket {
   bool get isSosActive => (flags & 0x01) != 0;
   bool get isMedicalEmergency => (flags & 0x02) != 0;
 
+  /// Hex representation of the BLE UID (e.g. "aabbccddee01").
+  String get bleUidHex =>
+      bleUid.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+
   // -----------------------------------------------------------------------
   // Serialisation
   // -----------------------------------------------------------------------
 
-  /// Encode into a 20-byte [Uint8List] (big-endian), with CRC16 at the end.
+  /// Encode into a 10-byte [Uint8List], with CRC8 at the end.
   Uint8List toBytes() {
-    final bd = ByteData(kCorePacketSize);
-    bd.setUint8(0, version & 0xFF);
-    bd.setUint8(1, flags & 0xFF);
-    bd.setUint32(2, deviceId & 0xFFFFFFFF, Endian.big);
-    bd.setInt32(6, (latitude * kGpsScale).round(), Endian.big);
-    bd.setInt32(10, (longitude * kGpsScale).round(), Endian.big);
-    bd.setUint32(14, timestamp & 0xFFFFFFFF, Endian.big);
+    final buf = Uint8List(kCorePacketSize);
+    buf[0] = version & 0xFF;
+    buf[1] = flags & 0xFF;
+    // Copy 6-byte BLE UID into bytes 2-7.
+    for (int i = 0; i < kBleUidSize; i++) {
+      buf[2 + i] = i < bleUid.length ? bleUid[i] : 0;
+    }
+    buf[8] = sequence & 0xFF;
 
-    // CRC16 over bytes 0-17.
-    final raw = bd.buffer.asUint8List();
-    final crc = computeCrc16(Uint8List.fromList(raw.sublist(0, 18)));
-    bd.setUint16(18, crc, Endian.big);
-    return bd.buffer.asUint8List();
+    // CRC8 over bytes 0-8.
+    final crc = computeCrc8(Uint8List.fromList(buf.sublist(0, 9)));
+    buf[9] = crc & 0xFF;
+    return buf;
   }
 
-  /// Decode a 20-byte [Uint8List] into a [CoreSosPacket].
+  /// Decode a 10-byte [Uint8List] into a [CoreSosPacket].
   ///
-  /// Throws [FormatException] if the CRC16 does not match.
+  /// Throws [FormatException] if the CRC8 does not match.
   factory CoreSosPacket.fromBytes(Uint8List raw) {
     if (raw.length < kCorePacketSize) {
       throw ArgumentError(
           'Core packet too short: ${raw.length} bytes (need $kCorePacketSize)');
     }
 
-    // Verify CRC16.
-    if (!verifyCrc16(Uint8List.fromList(raw.sublist(0, kCorePacketSize)))) {
-      throw FormatException('CRC16 mismatch on core SOS packet');
+    // Verify CRC8 over bytes 0-8, CRC at byte 9.
+    if (!verifyCrc8(Uint8List.fromList(raw.sublist(0, kCorePacketSize)))) {
+      throw FormatException('CRC8 mismatch on core SOS packet');
     }
 
-    final bd = ByteData.sublistView(raw, 0, kCorePacketSize);
     return CoreSosPacket(
-      version: bd.getUint8(0),
-      flags: bd.getUint8(1),
-      deviceId: bd.getUint32(2, Endian.big),
-      latitude: bd.getInt32(6, Endian.big) / kGpsScale,
-      longitude: bd.getInt32(10, Endian.big) / kGpsScale,
-      timestamp: bd.getUint32(14, Endian.big),
+      version: raw[0],
+      flags: raw[1],
+      bleUid: Uint8List.fromList(raw.sublist(2, 2 + kBleUidSize)),
+      sequence: raw[8],
     );
   }
 
@@ -127,6 +118,5 @@ class CoreSosPacket {
   @override
   String toString() =>
       'CoreSosPacket(v$version, flags=0x${flags.toRadixString(16)}, '
-      'devId=$deviceId, lat=${latitude.toStringAsFixed(5)}, '
-      'lon=${longitude.toStringAsFixed(5)}, ts=$timestamp)';
+      'uid=$bleUidHex, seq=$sequence)';
 }

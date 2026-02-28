@@ -1,4 +1,7 @@
 /// SOS Notifier — orchestrates the full SOS trigger → broadcast → fallback flow.
+///
+/// V2: privacy-first — no GPS in BLE packets. The BLE UID and a wrapping
+/// sequence counter are broadcast. GPS is only acquired for SMS fallback.
 library;
 
 import 'dart:async';
@@ -21,9 +24,6 @@ enum SosPhase {
 
   /// Countdown before committing the SOS.
   countdown,
-
-  /// Acquiring GPS.
-  locating,
 
   /// Broadcasting via BLE.
   broadcasting,
@@ -82,6 +82,9 @@ class SosNotifier extends StateNotifier<SosState> {
   Timer? _countdownTimer;
   Timer? _ackTimer;
 
+  /// Wrapping sequence counter (0-255) for CORE V2 packets.
+  int _sequence = 0;
+
   // -------------------------------------------------------------------------
   // Public API
   // -------------------------------------------------------------------------
@@ -135,46 +138,33 @@ class SosNotifier extends StateNotifier<SosState> {
   // -------------------------------------------------------------------------
 
   Future<void> _commitSos() async {
-    // 1. Acquire GPS.
-    state = state.copyWith(phase: SosPhase.locating);
-    final locSvc = _ref.read(locationServiceProvider);
-    final pos = await locSvc.getCurrentPosition();
+    // 1. Load persistent BLE UID.
+    final bleUid = await _ref.read(bleUidProvider.future);
+    final seq = _sequence;
+    _sequence = (_sequence + 1) & 0xFF; // wrap at 255
 
-    final lat = pos?.latitude ?? 0.0;
-    final lon = pos?.longitude ?? 0.0;
+    final corePacket = CoreSosPacket(
+      version: kCorePacketVersion,
+      flags: CoreSosPacket.buildFlags(sosActive: true),
+      bleUid: bleUid,
+      sequence: seq,
+    );
 
-    // 2. Get persistent device ID.
-    final deviceUuid = await _ref.read(deviceUuidProvider.future);
-    final enc = _ref.read(encryptionServiceProvider);
-    final deviceHash = enc.deviceIdHash(deviceUuid);
-    final deviceIdNumeric = deviceHash[0] << 24 |
-        deviceHash[1] << 16 |
-        (deviceHash.length > 2 ? deviceHash[2] : 0) << 8 |
-        (deviceHash.length > 3 ? deviceHash[3] : 0);
-
+    final dedupKey = 'uid:${corePacket.bleUidHex}:$seq';
     final event = SosEvent(
-      id: DateTime.now().millisecondsSinceEpoch.toRadixString(36),
-      deviceIdHash: deviceHash,
-      latitude: lat,
-      longitude: lon,
+      id: dedupKey,
+      bleUid: Uint8List.fromList(bleUid),
+      flags: corePacket.flags,
+      sequence: seq,
       timestamp: DateTime.now().toUtc(),
     );
 
     state = state.copyWith(phase: SosPhase.broadcasting, currentEvent: event);
 
-    // 3. Broadcast CORE 20-byte packet first, then fragments.
+    // 2. Broadcast 10-byte CORE V2 packet (no GPS, UID only).
     final advertiser = _ref.read(bleAdvertiserProvider);
     try {
-      final corePacket = CoreSosPacket(
-        version: kCorePacketVersion,
-        flags: CoreSosPacket.buildFlags(sosActive: true),
-        deviceId: deviceIdNumeric,
-        latitude: lat,
-        longitude: lon,
-        timestamp: event.timestamp.millisecondsSinceEpoch ~/ 1000,
-      );
       await advertiser.broadcastCoreSos(corePacket);
-      await advertiser.broadcastSos(event);
     } catch (e) {
       debugPrint('[SosNotifier] BLE broadcast error: $e');
       state = state.copyWith(
@@ -182,6 +172,17 @@ class SosNotifier extends StateNotifier<SosState> {
         errorMessage: 'BLE broadcast failed: $e',
       );
       // Continue to backend/SMS fallback despite BLE failure.
+    }
+
+    // 3. Attach receiver's own location for backend upload.
+    final locSvc = _ref.read(locationServiceProvider);
+    final pos = await locSvc.getCurrentPosition();
+    if (pos != null) {
+      event.receiverLocation = ReceiverLocation(
+        lat: pos.latitude,
+        lon: pos.longitude,
+        accuracy: pos.accuracy,
+      );
     }
 
     // 4. Attempt backend upload.
@@ -208,6 +209,7 @@ class SosNotifier extends StateNotifier<SosState> {
   Future<void> _triggerSmsFallback(SosEvent event) async {
     state = state.copyWith(phase: SosPhase.smsFallback);
     final sms = _ref.read(smsFallbackProvider);
+    // SMS fallback acquires GPS independently for the SMS body.
     await sms.sendSos(event);
     state = state.copyWith(phase: SosPhase.sent);
   }

@@ -119,12 +119,14 @@ class AlertsNotifier extends StateNotifier<AlertsState> {
           if (e.id == sosId)
             SosEvent(
               id: e.id,
-              deviceIdHash: e.deviceIdHash,
-              latitude: e.latitude,
-              longitude: e.longitude,
+              bleUid: e.bleUid,
+              flags: e.flags,
+              sequence: e.sequence,
               timestamp: e.timestamp,
               status: newStatus,
               relayHops: e.relayHops,
+              receiverLocation: e.receiverLocation,
+              rssi: e.rssi,
               message: e.message,
             )
           else
