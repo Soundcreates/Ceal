@@ -107,6 +107,23 @@ export const aadhaarVerifySchema = z.object({
 
 export type AadhaarVerifyPayload = z.infer<typeof aadhaarVerifySchema>;
 
+/**
+ * Validates POST /onboarding/verify-aadhaar-qr body.
+ *
+ * This is a non-ZK onboarding path for parsing the Aadhaar QR XML and
+ * storing extracted demographics for MVP onboarding.
+ */
+export const aadhaarQrVerifySchema = z.object({
+  userId: z
+    .string()
+    .uuid('Invalid user ID'),
+  rawXml: z
+    .string()
+    .min(1, 'Raw Aadhaar XML is required'),
+});
+
+export type AadhaarQrVerifyPayload = z.infer<typeof aadhaarQrVerifySchema>;
+
 // ---------------------------------------------------------------------------
 // TypeScript interfaces — DB row representations
 // ---------------------------------------------------------------------------

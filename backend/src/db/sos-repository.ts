@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — SOS Events data-access layer (V2 protocol).
+ * AfterMath Backend — SOS Events data-access layer.
  */
 
 import type { Pool as PgPool } from 'pg';
@@ -14,30 +14,22 @@ export class SosRepository {
    */
   async upsert(event: SosEvent): Promise<SosEvent> {
     const { rows } = await this.pool.query<SosEvent>(
-      `INSERT INTO sos_events (id, ble_uid, flags, sequence, timestamp, status, relay_hops, message, receiver_lat, receiver_lon, rssi, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO sos_events (id, device_id_hash, latitude, longitude, timestamp, status, relay_hops, message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (id) DO UPDATE SET
-         relay_hops   = GREATEST(sos_events.relay_hops, EXCLUDED.relay_hops),
-         status       = EXCLUDED.status,
-         receiver_lat = COALESCE(EXCLUDED.receiver_lat, sos_events.receiver_lat),
-         receiver_lon = COALESCE(EXCLUDED.receiver_lon, sos_events.receiver_lon),
-         rssi         = COALESCE(EXCLUDED.rssi, sos_events.rssi),
-         user_id      = COALESCE(EXCLUDED.user_id, sos_events.user_id),
-         updated_at   = NOW()
+         relay_hops = GREATEST(sos_events.relay_hops, EXCLUDED.relay_hops),
+         status     = EXCLUDED.status,
+         updated_at = NOW()
        RETURNING *`,
       [
         event.id,
-        event.bleUid,
-        event.flags,
-        event.sequence,
+        event.deviceIdHash,
+        event.latitude,
+        event.longitude,
         event.timestamp,
         event.status,
         event.relayHops,
         event.message ?? null,
-        event.receiverLat ?? null,
-        event.receiverLon ?? null,
-        event.rssi ?? null,
-        event.userId ?? null,
       ],
     );
     return this.rowToEvent(rows[0]!);
@@ -95,17 +87,13 @@ export class SosRepository {
   private rowToEvent(row: any): SosEvent {
     return {
       id: row.id,
-      bleUid: row.ble_uid,
-      flags: row.flags,
-      sequence: row.sequence,
+      deviceIdHash: row.device_id_hash,
+      latitude: parseFloat(row.latitude),
+      longitude: parseFloat(row.longitude),
       timestamp: row.timestamp instanceof Date ? row.timestamp.toISOString() : row.timestamp,
       status: row.status,
       relayHops: row.relay_hops,
       message: row.message ?? undefined,
-      receiverLat: row.receiver_lat != null ? parseFloat(row.receiver_lat) : undefined,
-      receiverLon: row.receiver_lon != null ? parseFloat(row.receiver_lon) : undefined,
-      rssi: row.rssi ?? undefined,
-      userId: row.user_id ?? undefined,
     };
   }
 }

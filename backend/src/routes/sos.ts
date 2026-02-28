@@ -2,17 +2,14 @@
  * AfterMath Backend — SOS routes.
  *
  * POST /sos/ingest       — Receive & store an SOS event from mobile
- * POST /sos/acknowledge   — Acknowledge an active SOS
- * GET  /sos/active        — Fetch all active/relayed SOS events
+ * POST /sos/acknowledge  — Acknowledge an active SOS
+ * GET  /sos/active       — Fetch all active/relayed SOS events
  */
 
 import { Router, type Request, type Response } from 'express';
 import { sosIngestSchema, sosAckSchema } from '../models/sos-event.js';
 import { SosRepository } from '../db/sos-repository.js';
 import { startEscalationTimer, cancelEscalationTimer } from '../services/escalation.js';
-import { resolveUid, hexToUidBuffer } from '../services/uid-resolver.js';
-import { getFullUserProfile } from '../services/user-profile.js';
-import { sendContactSms } from '../services/twilio.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { logger } from '../logger.js';
 import type { Pool } from 'pg';
@@ -36,100 +33,26 @@ export function createSosRouter(pool: Pool): Router {
       }
 
       const data = parsed.data;
-
-      // --- UID Resolution ---
-      let userId: string | undefined;
-      try {
-        const uidBuffer = hexToUidBuffer(data.bleUid);
-        const user = await resolveUid(pool, uidBuffer);
-        if (user) {
-          userId = user.id;
-          logger.info(`SOS UID resolved: ${data.bleUid} → user ${userId}`);
-        } else {
-          logger.warn(`SOS UID unresolved: ${data.bleUid}`);
-        }
-      } catch (uidErr) {
-        logger.error('UID resolution error', uidErr);
-        // Continue without user — don't block ingest
-      }
-
       const event = await repo.upsert({
         id: data.id,
-        bleUid: data.bleUid,
-        flags: data.flags,
-        sequence: data.sequence,
+        deviceIdHash: data.deviceIdHash,
+        latitude: data.latitude,
+        longitude: data.longitude,
         timestamp: data.timestamp,
         status: data.status,
         relayHops: data.relayHops,
         message: data.message,
-        receiverLat: data.receiverLocation?.lat,
-        receiverLon: data.receiverLocation?.lon,
-        rssi: data.rssi,
-        userId,
       });
 
-      // --- Contact notification + Enriched escalation ---
+      // Start escalation timer (SMS fallback if not acknowledged in 30s)
       if (event.status === 'active' || event.status === 'relayed') {
-        let escalationProfile = undefined;
-
-        if (event.userId) {
-          try {
-            const profile = await getFullUserProfile(pool, event.userId);
-            if (profile) {
-              escalationProfile = {
-                name: profile.user.name,
-                phone: profile.user.phone,
-                contacts: profile.contacts.map((c) => ({
-                  name: c.name,
-                  phone: c.phone,
-                  priority: c.priority,
-                })),
-                medical: profile.medical
-                  ? {
-                      bloodGroup: profile.medical.bloodGroup,
-                      allergies: profile.medical.allergies,
-                      conditions: profile.medical.conditions,
-                    }
-                  : null,
-              };
-              logger.info(`Escalation enriched for SOS ${event.id} with user profile`);
-
-              // Immediately notify the victim's emergency contacts — we already
-              // know who they are because the BLE UID resolved to a registered user.
-              const reachable = profile.contacts.filter((c) => c.phone);
-              if (reachable.length > 0) {
-                Promise.allSettled(
-                  reachable.map((c) =>
-                    sendContactSms({
-                      to: c.phone!,
-                      victimName: profile.user.name,
-                      sosId: event.id,
-                      latitude: event.receiverLat ?? 0,
-                      longitude: event.receiverLon ?? 0,
-                      timestamp: event.timestamp,
-                      message: event.message,
-                    }),
-                  ),
-                ).then(() => {
-                  logger.info(
-                    `Distress SMS dispatched to ${reachable.length} emergency contact(s) for SOS ${event.id}`,
-                  );
-                });
-              }
-            }
-          } catch (profileErr) {
-            logger.error('Profile enrichment error', profileErr);
-          }
-        }
-
         startEscalationTimer(
           event.id,
-          event.receiverLat,
-          event.receiverLon,
+          event.latitude,
+          event.longitude,
           event.timestamp,
           event.message,
           repo,
-          escalationProfile,
         );
       }
 

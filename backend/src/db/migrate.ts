@@ -14,18 +14,14 @@ const { Pool } = pg;
 const CREATE_SOS_EVENTS = `
 CREATE TABLE IF NOT EXISTS sos_events (
   id              TEXT PRIMARY KEY,
-  ble_uid         TEXT NOT NULL,                 -- hex-encoded 6-byte BLE UID
-  flags           INTEGER NOT NULL DEFAULT 1,
-  sequence        INTEGER NOT NULL DEFAULT 0,
+  device_id_hash  INTEGER[] NOT NULL,           -- 2-element array [byte0, byte1]
+  latitude        DOUBLE PRECISION NOT NULL,
+  longitude       DOUBLE PRECISION NOT NULL,
   timestamp       TIMESTAMPTZ NOT NULL,
   status          TEXT NOT NULL DEFAULT 'active'
                   CHECK (status IN ('active', 'relayed', 'acknowledged', 'resolved', 'cancelled')),
   relay_hops      INTEGER NOT NULL DEFAULT 0,
   message         TEXT,
-  receiver_lat    DOUBLE PRECISION,
-  receiver_lon    DOUBLE PRECISION,
-  rssi            INTEGER,
-  user_id         UUID,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -57,8 +53,6 @@ $$;
 const CREATE_INDEXES = `
 CREATE INDEX IF NOT EXISTS idx_sos_events_status   ON sos_events (status);
 CREATE INDEX IF NOT EXISTS idx_sos_events_created  ON sos_events (created_at);
-CREATE INDEX IF NOT EXISTS idx_sos_events_ble_uid  ON sos_events (ble_uid);
-CREATE INDEX IF NOT EXISTS idx_sos_events_user_id  ON sos_events (user_id);
 `;
 
 // ---------------------------------------------------------------------------
@@ -129,9 +123,16 @@ $$;
 `;
 
 async function migrate(): Promise<void> {
+  const dbUrl = new URL(env.DATABASE_URL);
+  const sslMode = dbUrl.searchParams.get('sslmode')?.toLowerCase();
+  const useSsl =
+    sslMode === 'require' ||
+    sslMode === 'verify-ca' ||
+    sslMode === 'verify-full';
+
   const pool = new Pool({
     connectionString: env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: useSsl ? { rejectUnauthorized: false } : false,
   });
 
   try {

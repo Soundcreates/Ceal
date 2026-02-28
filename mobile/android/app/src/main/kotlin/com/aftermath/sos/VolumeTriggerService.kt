@@ -1,4 +1,4 @@
-package com.example.mobile
+package com.aftermath.sos
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
@@ -10,7 +10,7 @@ import android.view.accessibility.AccessibilityEvent
 
 class VolumeTriggerService : AccessibilityService() {
     companion object {
-        const val ACTION_DOUBLE_VOLUME_UP = "com.example.mobile.ACTION_DOUBLE_VOLUME_UP"
+        const val ACTION_DOUBLE_VOLUME_UP = "com.aftermath.sos.ACTION_DOUBLE_VOLUME_UP"
     }
 
     private var pressCount = 0

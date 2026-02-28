@@ -1,4 +1,4 @@
-package com.example.mobile
+package com.aftermath.sos
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
 class AppForegroundService : Service() {
+    
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -29,7 +30,9 @@ class AppForegroundService : Service() {
             .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
             .setContentTitle("Volume Trigger Active")
             .setContentText("Foreground service started by double volume-up press")
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOnlyAlertOnce(true)
             .setOngoing(true)
 
         buildOpenAppPendingIntent()?.let { pendingIntent ->
@@ -56,18 +59,20 @@ class AppForegroundService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Volume Trigger Service",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             )
             channel.description = "Notification channel for volume-trigger foreground service"
 
             val notificationManager =
                 getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
+            print("Process of creaing a notificatio service done")
         }
     }
 
     companion object {
         private const val CHANNEL_ID = "volume_trigger_service_channel"
         private const val NOTIFICATION_ID = 1001
+        const val ACTION_STOP_BUTTON= "FOREGROUND_STOP"
     }
 }

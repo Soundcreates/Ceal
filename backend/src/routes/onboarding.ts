@@ -12,7 +12,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { Pool } from 'pg';
-import { signupSchema, aadhaarVerifySchema } from '../models/user.js';
+import { signupSchema, aadhaarVerifySchema, aadhaarQrVerifySchema } from '../models/user.js';
 import { UserRepository } from '../db/user-repository.js';
 import { verifyAadhaarProof, computeExpectedSignalHash } from '../services/aadhaar-zk.js';
 import { signToken, requireAuth, optionalAuth } from '../middleware/auth.js';
@@ -114,6 +114,80 @@ export function createOnboardingRouter(pool: Pool): Router {
 
       logger.error('Signup error', err);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // POST /onboarding/verify-aadhaar-qr
+  // -----------------------------------------------------------------------
+  //
+  // Lightweight Aadhaar QR XML verification path for onboarding MVP.
+  // Parses demographics from the XML and marks user as KYC-verified.
+  //
+  router.post('/verify-aadhaar-qr', async (req: Request, res: Response) => {
+    try {
+      const parsed = aadhaarQrVerifySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          error: 'Invalid Aadhaar QR payload',
+          details: parsed.error.flatten().fieldErrors,
+        });
+        return;
+      }
+
+      const data = parsed.data;
+      const user = await userRepo.findById(data.userId);
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      if (user.kycStatus === 'verified') {
+        res.status(200).json({
+          user,
+          message: 'KYC already verified',
+        });
+        return;
+      }
+
+      if (user.kycStatus === 'rejected') {
+        res.status(400).json({
+          error: 'KYC was previously rejected. Please contact support.',
+        });
+        return;
+      }
+
+      const extracted = parseAadhaarQrXml(data.rawXml);
+      const ageAbove18 = computeAgeAbove18(extracted.dob, extracted.yob);
+
+      const updatedUser = await userRepo.updateKycVerifiedFromQr(
+        data.userId,
+        ageAbove18,
+        extracted.gender,
+        extracted.state,
+      );
+
+      if (!updatedUser) {
+        const currentUser = await userRepo.findById(data.userId);
+        if (currentUser?.kycStatus === 'verified') {
+          res.status(200).json({ user: currentUser, message: 'KYC already verified' });
+          return;
+        }
+        res.status(500).json({ error: 'Failed to update KYC status' });
+        return;
+      }
+
+      logger.info(`Aadhaar QR verify: user ${data.userId} KYC verified`);
+      res.status(200).json({
+        user: updatedUser,
+        extracted,
+        message: 'Aadhaar QR verification successful',
+      });
+    } catch (err) {
+      logger.error('Aadhaar QR verification error', err);
+      res.status(422).json({
+        error: err instanceof Error ? err.message : 'Invalid Aadhaar QR XML',
+      });
     }
   });
 
@@ -276,8 +350,9 @@ export function createOnboardingRouter(pool: Pool): Router {
     try {
       let user;
 
-      if (req.params.userId) {
-        user = await userRepo.findById(req.params.userId);
+      const paramUserId = req.params.userId;
+      if (typeof paramUserId === 'string' && paramUserId.length > 0) {
+        user = await userRepo.findById(paramUserId);
       } else if (typeof req.query.phone === 'string') {
         user = await userRepo.findByPhone(req.query.phone);
       } else if (req.user?.sub) {
@@ -308,4 +383,107 @@ export function createOnboardingRouter(pool: Pool): Router {
   });
 
   return router;
+}
+
+function parseAadhaarQrXml(raw: string): {
+  name: string | null;
+  gender: string | null;
+  state: string | null;
+  dob: string | null;
+  yob: string | null;
+} {
+  const xml = extractXml(raw);
+  const nodeMatch = xml.match(/<\s*PrintLetterBarcodeData\b([^>]*)\/?>/i);
+  if (!nodeMatch || !nodeMatch[1]) {
+    throw new Error('Aadhaar QR XML must contain PrintLetterBarcodeData');
+  }
+
+  const attrs = new Map<string, string>();
+  const attrRegex = /([a-zA-Z_:][\w:.-]*)\s*=\s*"([^"]*)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = attrRegex.exec(nodeMatch[1])) !== null) {
+    const key = m[1];
+    const value = m[2];
+    if (!key) continue;
+    attrs.set(key.toLowerCase(), decodeXmlEntities(value ?? ''));
+  }
+
+  return {
+    name: normalizeField(attrs.get('name')),
+    gender: normalizeField(attrs.get('gender')),
+    state: normalizeField(attrs.get('state')),
+    dob: normalizeField(attrs.get('dob')),
+    yob: normalizeField(attrs.get('yob')),
+  };
+}
+
+function computeAgeAbove18(dob: string | null, yob: string | null): boolean {
+  const now = new Date();
+
+  if (dob) {
+    const parsedDob = parseAadhaarDob(dob);
+    if (parsedDob) {
+      const eighteenth = new Date(parsedDob);
+      eighteenth.setFullYear(eighteenth.getFullYear() + 18);
+      return eighteenth <= now;
+    }
+  }
+
+  if (yob && /^\d{4}$/.test(yob)) {
+    return now.getUTCFullYear() - parseInt(yob, 10) >= 18;
+  }
+
+  return false;
+}
+
+function parseAadhaarDob(dob: string): Date | null {
+  const norm = dob.trim();
+  let match = norm.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (match) {
+    const date = new Date(Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1])));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  match = norm.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+  if (match) {
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return null;
+}
+
+function extractXml(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('<')) return trimmed;
+
+  try {
+    const decoded = decodeURIComponent(trimmed);
+    if (decoded.includes('<')) return decoded;
+  } catch {
+    // Non URI-encoded payload; fall through.
+  }
+
+  const start = trimmed.indexOf('<');
+  const end = trimmed.lastIndexOf('>');
+  if (start >= 0 && end > start) {
+    return trimmed.slice(start, end + 1);
+  }
+
+  throw new Error('No XML found in QR payload');
+}
+
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function normalizeField(value: string | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }

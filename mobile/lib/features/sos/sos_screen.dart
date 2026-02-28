@@ -1,7 +1,4 @@
-/// SOS Screen — the primary emergency trigger interface.
-///
-/// Features a large panic button with a confirmation countdown, status
-/// feedback, and cancel control.
+/// SOS screen.
 library;
 
 import 'package:flutter/material.dart';
@@ -43,11 +40,7 @@ class SosScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBody(
-    BuildContext context,
-    SosState sosState,
-    SosNotifier notifier,
-  ) {
+  Widget _buildBody(BuildContext context, SosState sosState, SosNotifier notifier) {
     switch (sosState.phase) {
       case SosPhase.idle:
       case SosPhase.error:
@@ -58,7 +51,6 @@ class SosScreen extends ConsumerWidget {
           },
           errorMessage: sosState.errorMessage,
         );
-
       case SosPhase.countdown:
         return _CountdownView(
           remaining: sosState.countdownRemaining,
@@ -67,31 +59,32 @@ class SosScreen extends ConsumerWidget {
             notifier.cancelSos();
           },
         );
-
+      case SosPhase.locating:
+        return const _StatusView(
+          icon: Icons.my_location,
+          label: 'Acquiring location...',
+          color: Colors.amber,
+        );
       case SosPhase.broadcasting:
         return const _StatusView(
           icon: Icons.bluetooth_searching,
-          label: 'Broadcasting SOS via BLE…',
+          label: 'Broadcasting SOS via BLE...',
           color: Colors.blue,
         );
-
       case SosPhase.awaitingAck:
         return const _StatusView(
           icon: Icons.cloud_upload,
-          label: 'Uploading to server…',
+          label: 'Uploading to server...',
           color: Colors.orange,
         );
-
       case SosPhase.smsFallback:
         return const _StatusView(
           icon: Icons.sms,
-          label: 'Sending SMS fallback…',
+          label: 'Sending SMS fallback...',
           color: Colors.deepOrange,
         );
-
       case SosPhase.sent:
         return _SentView(onReset: notifier.reset);
-
       case SosPhase.cancelled:
         return const _StatusView(
           icon: Icons.cancel_outlined,
@@ -101,10 +94,6 @@ class SosScreen extends ConsumerWidget {
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Sub-views
-// ---------------------------------------------------------------------------
 
 class _IdleView extends StatelessWidget {
   const _IdleView({required this.onTrigger, this.errorMessage});
@@ -186,10 +175,7 @@ class _CountdownView extends StatelessWidget {
       children: [
         const Icon(Icons.warning_amber_rounded, size: 64, color: Colors.amber),
         const SizedBox(height: 16),
-        Text(
-          'Sending SOS in',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        Text('Sending SOS in', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
         Text(
           '$remaining',
@@ -230,11 +216,22 @@ class _StatusView extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 64, color: color),
-        const SizedBox(height: 16),
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        SizedBox(
+          width: 56,
+          height: 56,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
         const SizedBox(height: 24),
-        CircularProgressIndicator(color: color),
+        Icon(icon, color: color, size: 40),
+        const SizedBox(height: 12),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
       ],
     );
   }
@@ -250,21 +247,18 @@ class _SentView extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.check_circle, size: 80, color: AppTheme.safeColor),
+        const Icon(Icons.check_circle, size: 72, color: Colors.green),
         const SizedBox(height: 16),
-        Text(
-          'SOS Sent',
-          style: Theme.of(context)
-              .textTheme
-              .headlineMedium
-              ?.copyWith(color: AppTheme.safeColor),
-        ),
+        Text('SOS Sent', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 8),
-        const Text('Help is on the way. Stay safe.'),
-        const SizedBox(height: 32),
+        const Text(
+          'Nearby devices and/or server were notified.',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
         OutlinedButton(
           onPressed: onReset,
-          child: const Text('Return to Home'),
+          child: const Text('Back'),
         ),
       ],
     );

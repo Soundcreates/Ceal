@@ -1,4 +1,4 @@
-package com.example.mobile
+package com.aftermath.sos
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -25,7 +25,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        EventChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_NAME)
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL_NAME)
             .setStreamHandler(
                 object : EventChannel.StreamHandler {
                     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -38,35 +38,33 @@ class MainActivity : FlutterActivity() {
                 },
             )
 
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            SMS_CHANNEL,
-        ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "sendSms" -> {
-                    val phone = call.argument<String>("phone")
-                    val message = call.argument<String>("message")
-                    if (phone == null || message == null) {
-                        result.error("INVALID_ARGS", "phone and message are required", null)
-                        return@setMethodCallHandler
-                    }
-                    try {
-                        val smsManager = SmsManager.getDefault()
-                        // Split long messages into parts.
-                        val parts = smsManager.divideMessage(message)
-                        if (parts.size == 1) {
-                            smsManager.sendTextMessage(phone, null, message, null, null)
-                        } else {
-                            smsManager.sendMultipartTextMessage(phone, null, parts, null, null)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SMS_CHANNEL_NAME)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "sendSms" -> {
+                        val phone = call.argument<String>("phone")
+                        val message = call.argument<String>("message")
+                        if (phone == null || message == null) {
+                            result.error("INVALID_ARGS", "phone and message are required", null)
+                            return@setMethodCallHandler
                         }
-                        result.success(true)
-                    } catch (e: Exception) {
-                        result.error("SMS_FAILED", e.message, null)
+
+                        try {
+                            val smsManager = SmsManager.getDefault()
+                            val parts = smsManager.divideMessage(message)
+                            if (parts.size == 1) {
+                                smsManager.sendTextMessage(phone, null, message, null, null)
+                            } else {
+                                smsManager.sendMultipartTextMessage(phone, null, parts, null, null)
+                            }
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("SMS_FAILED", e.message, null)
+                        }
                     }
+                    else -> result.notImplemented()
                 }
-                else -> result.notImplemented()
             }
-        }
     }
 
     override fun onStart() {
@@ -90,7 +88,7 @@ class MainActivity : FlutterActivity() {
     }
 
     companion object {
-        private const val CHANNEL_NAME = "volume_trigger/events"
-        private const val SMS_CHANNEL = "com.aftermath.sos/sms"
+        private const val EVENT_CHANNEL_NAME = "volume_trigger/events"
+        private const val SMS_CHANNEL_NAME = "com.aftermath.sos/sms"
     }
 }

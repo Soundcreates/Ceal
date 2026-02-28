@@ -1,12 +1,8 @@
 /**
  * AfterMath Backend — SOS Event model & Zod validation.
  *
- * V2 privacy-first protocol:
- *   {id, bleUid (hex), flags, sequence, timestamp, status, relayHops,
- *    receiverLocation: {lat, lon}, rssi?, message?}
- *
- * The BLE packet no longer contains GPS — the receiver attaches its own
- * location when forwarding to the backend.
+ * Matches the JSON contract from the Flutter mobile app:
+ *   {id, deviceIdHash: [int,int], latitude, longitude, timestamp, status, relayHops, message?}
  */
 
 import { z } from 'zod';
@@ -30,28 +26,17 @@ export type SosStatus = (typeof SOS_STATUSES)[number];
 // ---------------------------------------------------------------------------
 
 /**
- * Validates the POST /sos/ingest body (V2 protocol).
+ * Validates the POST /sos/ingest body.
  */
 export const sosIngestSchema = z.object({
   id: z.string().min(1).max(128),
-  /** Hex-encoded 6-byte BLE UID (12 hex chars) */
-  bleUid: z.string().regex(/^[0-9a-fA-F]{12}$/),
-  /** BLE advertisement flags (bit 0 = SOS active, bit 1 = medical) */
-  flags: z.number().int().min(0).max(255),
-  /** Packet sequence number (0-255, wrapping) */
-  sequence: z.number().int().min(0).max(255),
+  deviceIdHash: z.array(z.number().int().min(0).max(255)).length(2),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
   timestamp: z.string().datetime({ offset: true }).or(z.string().datetime()),
   status: z.enum(SOS_STATUSES).default('active'),
   relayHops: z.number().int().min(0).default(0),
   message: z.string().max(64).optional(),
-  /** Receiver location (lat/lon of the relay device, NOT the victim) */
-  receiverLocation: z.object({
-    lat: z.number().min(-90).max(90),
-    lon: z.number().min(-180).max(180),
-    accuracy: z.number().optional(),
-  }).optional(),
-  /** RSSI of BLE signal at receiver (dBm, negative) */
-  rssi: z.number().int().optional(),
 });
 
 /**
@@ -67,20 +52,14 @@ export const sosAckSchema = z.object({
 
 export interface SosEvent {
   id: string;
-  bleUid: string;
-  flags: number;
-  sequence: number;
+  deviceIdHash: number[];
+  latitude: number;
+  longitude: number;
   /** ISO 8601 string */
   timestamp: string;
   status: SosStatus;
   relayHops: number;
   message?: string;
-  /** Receiver location */
-  receiverLat?: number;
-  receiverLon?: number;
-  rssi?: number;
-  /** Resolved user ID (if BLE UID matched a registered user) */
-  userId?: string;
 }
 
 export type SosIngestPayload = z.infer<typeof sosIngestSchema>;

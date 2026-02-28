@@ -1,17 +1,22 @@
+/// AfterMath — Offline-first BLE emergency alert mesh network.
+library;
+
 import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/features/alerts/alert_list_screen.dart';
 import 'package:aftermath/features/alerts/alerts_notifier.dart';
+import 'package:aftermath/features/onboarding/aadhaar_qr_screen.dart';
 import 'package:aftermath/features/onboarding/permission_screen.dart';
 import 'package:aftermath/features/onboarding/welcome_screen.dart';
 import 'package:aftermath/features/settings/settings_screen.dart';
 import 'package:aftermath/features/sos/sos_screen.dart';
 import 'package:aftermath/providers.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,11 +42,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-enum _OnboardingStep {
-  welcome,
-  permissions,
-  home,
-}
+enum _OnboardingStep { welcome, permissions, aadhaarQr, home }
 
 class AppBootstrapScreen extends ConsumerStatefulWidget {
   const AppBootstrapScreen({super.key});
@@ -78,10 +79,7 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
     final relay = ref.read(meshRelayProvider);
     final alerts = ref.read(alertsNotifierProvider.notifier);
 
-    // Scanner feeds CORE packets directly into the reassembler (V2: includes RSSI).
     scanner.onCorePacketReceived = reassembler.addCorePacket;
-
-    // Reassembler feeds completed SOS events into relay + alerts (V2: includes RSSI).
     reassembler.onSosReassembled = (event, deviceId, rssi) {
       relay.onSosReceived(event, deviceId, rssi);
       alerts.addAlert(event);
@@ -91,9 +89,9 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
   }
 
   void _listenVolumeEvents() {
-    _volumeSubscription = _volumeEventChannel
-        .receiveBroadcastStream()
-        .listen((dynamic event) {
+    _volumeSubscription = _volumeEventChannel.receiveBroadcastStream().listen((
+      dynamic event,
+    ) {
       if (!mounted || event != 'double_volume_up') return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Double volume-up detected')),
@@ -118,6 +116,12 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
         );
       case _OnboardingStep.permissions:
         return PermissionScreen(
+          onComplete: () {
+            setState(() => _step = _OnboardingStep.aadhaarQr);
+          },
+        );
+      case _OnboardingStep.aadhaarQr:
+        return AadhaarQrScreen(
           onComplete: () {
             setState(() => _step = _OnboardingStep.home);
           },

@@ -113,6 +113,30 @@ export class UserRepository {
   }
 
   /**
+   * Mark KYC as verified based on Aadhaar QR XML extraction.
+   * This route does not use ZK nullifier-based deduplication.
+   */
+  async updateKycVerifiedFromQr(
+    userId: string,
+    aadhaarAgeAbove18: boolean,
+    aadhaarGender: string | null,
+    aadhaarState: string | null,
+  ): Promise<User | null> {
+    const { rows } = await this.pool.query(
+      `UPDATE users
+       SET kyc_status = 'verified',
+           aadhaar_verified_at = NOW(),
+           aadhaar_age_above_18 = $2,
+           aadhaar_gender = $3,
+           aadhaar_state = $4
+       WHERE id = $1 AND kyc_status IN ('pending', 'expired')
+       RETURNING *`,
+      [userId, aadhaarAgeAbove18, aadhaarGender, aadhaarState],
+    );
+    return rows.length > 0 ? this.rowToUser(rows[0]) : null;
+  }
+
+  /**
    * Update user's role (e.g. civilian → responder).
    */
   async updateRole(userId: string, role: string): Promise<User | null> {
