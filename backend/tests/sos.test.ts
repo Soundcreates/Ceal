@@ -142,7 +142,7 @@ describe('SOS routes', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // -------------------------------------------------------------------------

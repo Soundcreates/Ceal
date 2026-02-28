@@ -98,7 +98,7 @@ describe('User creation', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('POST /v1/users returns 201 with valid payload', async () => {
@@ -235,7 +235,7 @@ describe('SOS ingest with UID', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('resolves UID and stores user_id in SOS event', async () => {
@@ -337,7 +337,7 @@ describe('Escalation payload generation', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('enriches escalation with user profile when UID resolves', async () => {
@@ -400,7 +400,7 @@ describe('User contacts endpoint', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('POST /v1/users/:id/contacts adds a contact', async () => {
@@ -440,7 +440,7 @@ describe('User medical endpoint', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('POST /v1/users/:id/medical sets medical profile', async () => {

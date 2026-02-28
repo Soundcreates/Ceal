@@ -210,7 +210,7 @@ describe('POST /v1/onboarding/signup', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('creates a user and returns 201 with valid payload', async () => {
@@ -446,7 +446,7 @@ describe('POST /v1/onboarding/verify-aadhaar', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('verifies Aadhaar proof and returns 200 with valid payload', async () => {
@@ -1027,7 +1027,7 @@ describe('Full onboarding flow', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('signup → verify-aadhaar → me (complete happy path)', async () => {
