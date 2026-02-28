@@ -114,11 +114,19 @@ class BackgroundRelayService {
 
     // Check dedup cache.
     if (_isDuplicate(dedupKey)) {
+      debugPrint(
+        '[BackgroundRelay] DEDUP HIT — uid=${packet.bleUidHex} seq=${packet.sequence} '
+        'rssi=$rssi | cacheSize=${_dedupCache.length}',
+      );
       return;
     }
     _addToDedup(dedupKey);
 
-    debugPrint('[BackgroundRelay] New SOS: uid=${packet.bleUidHex} seq=${packet.sequence} rssi=$rssi');
+    debugPrint(
+      '[BackgroundRelay] NEW SOS packet | uid=${packet.bleUidHex} seq=${packet.sequence} '
+      'rssi=$rssi flags=0x${packet.flags.toRadixString(16).padLeft(2, '0')} '
+      'deviceId=$deviceId | cacheSize=${_dedupCache.length}',
+    );
 
     // Fire-and-forget the async pipeline.
     _handleNewSos(packet, deviceId, rssi);
@@ -130,6 +138,10 @@ class BackgroundRelayService {
     final pos = await locationService.getCurrentPosition();
     final lat = pos?.latitude ?? 0.0;
     final lon = pos?.longitude ?? 0.0;
+    debugPrint(
+      '[BackgroundRelay] Location for uid=${packet.bleUidHex}: '
+      'lat=$lat lon=$lon acc=${pos != null ? pos.accuracy.toStringAsFixed(1) : 'unknown'}m',
+    );
 
     // 2. Build pending event.
     final eventId = 'uid:${packet.bleUidHex}:${packet.sequence}';
@@ -146,6 +158,10 @@ class BackgroundRelayService {
 
     // 3. Persist to local queue.
     await pendingDb.insert(pe);
+    final queueDepth = await pendingDb.pendingCount();
+    debugPrint(
+      '[BackgroundRelay] Persisted ${pe.id} | queueDepth=$queueDepth',
+    );
 
     // 4. Build SosEvent for UI / backend / mesh relay.
     final sosEvent = SosEvent(
@@ -172,12 +188,15 @@ class BackgroundRelayService {
 
     // 7. Attempt immediate SMS (Android).
     if (kAutoSmsEnabled && Platform.isAndroid) {
+      debugPrint('[BackgroundRelay] Attempting SMS fallback for ${pe.id}');
       await _sendSmsSafe(pe);
     }
 
     // 8. Try immediate backend upload.
     final hasNet = await connectivityWorker.hasConnectivity();
+    debugPrint('[BackgroundRelay] Connectivity check for ${pe.id}: hasNet=$hasNet');
     if (hasNet) {
+      debugPrint('[BackgroundRelay] Draining queue ($queueDepth pending)');
       unawaited(connectivityWorker.drainQueue());
     }
 
@@ -197,6 +216,10 @@ class BackgroundRelayService {
             .map((s) => s.trim())
             .where((s) => s.isNotEmpty)
             .toList();
+        debugPrint(
+          '[BackgroundRelay] SMS attempt ${attempt + 1}/$kSmsMaxRetries | '
+          'id=${pe.id} targets=[${targets.join(', ')}]',
+        );
 
         bool anySent = false;
         for (final number in targets) {
@@ -218,25 +241,30 @@ class BackgroundRelayService {
           );
 
           final sent = await smsService.sendSos(event);
+          debugPrint(
+            '[BackgroundRelay] SMS to $number: sent=${sent > 0} (count=$sent)',
+          );
           if (sent > 0) anySent = true;
         }
 
         if (anySent) {
           await pendingDb.markSmsSent(pe.id);
-          debugPrint('[BackgroundRelay] SMS sent for ${pe.id}');
+          debugPrint('[BackgroundRelay] SMS sent OK for ${pe.id} after attempt ${attempt + 1}');
           return;
         }
       } catch (e) {
-        debugPrint('[BackgroundRelay] SMS attempt ${attempt + 1} failed: $e');
+        debugPrint('[BackgroundRelay] SMS attempt ${attempt + 1} threw: $e');
       }
 
       // Exponential backoff.
       if (attempt < kSmsMaxRetries - 1) {
-        await Future<void>.delayed(kSmsRetryBackoff * (attempt + 1));
+        final delay = kSmsRetryBackoff * (attempt + 1);
+        debugPrint('[BackgroundRelay] SMS retry backoff: ${delay.inSeconds}s');
+        await Future<void>.delayed(delay);
       }
     }
 
-    debugPrint('[BackgroundRelay] SMS failed after $kSmsMaxRetries attempts for ${pe.id}');
+    debugPrint('[BackgroundRelay] SMS FAILED all $kSmsMaxRetries attempts for ${pe.id}');
   }
 
   // ---------------------------------------------------------------------------
@@ -244,6 +272,9 @@ class BackgroundRelayService {
   // ---------------------------------------------------------------------------
 
   void _rebroadcast(CoreSosPacket packet) {
+    debugPrint(
+      '[BackgroundRelay] Rebroadcasting via BLE | uid=${packet.bleUidHex} seq=${packet.sequence}',
+    );
     try {
       advertiser.broadcastCoreSos(packet);
     } catch (e) {

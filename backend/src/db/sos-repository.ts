@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — SOS Events data-access layer.
+ * AfterMath Backend — SOS Events data-access layer (V2 protocol).
  */
 
 import type { Pool as PgPool } from 'pg';
@@ -14,18 +14,27 @@ export class SosRepository {
    */
   async upsert(event: SosEvent): Promise<SosEvent> {
     const { rows } = await this.pool.query<SosEvent>(
-      `INSERT INTO sos_events (id, device_id_hash, latitude, longitude, timestamp, status, relay_hops, message)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO sos_events
+         (id, ble_uid, flags, sequence, receiver_lat, receiver_lon, rssi, user_id,
+          timestamp, status, relay_hops, message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (id) DO UPDATE SET
-         relay_hops = GREATEST(sos_events.relay_hops, EXCLUDED.relay_hops),
-         status     = EXCLUDED.status,
-         updated_at = NOW()
+         relay_hops   = GREATEST(sos_events.relay_hops, EXCLUDED.relay_hops),
+         status       = EXCLUDED.status,
+         receiver_lat = EXCLUDED.receiver_lat,
+         receiver_lon = EXCLUDED.receiver_lon,
+         rssi         = EXCLUDED.rssi,
+         updated_at   = NOW()
        RETURNING *`,
       [
         event.id,
-        event.deviceIdHash,
-        event.latitude,
-        event.longitude,
+        event.bleUid,
+        event.flags,
+        event.sequence,
+        event.receiverLat ?? null,
+        event.receiverLon ?? null,
+        event.rssi ?? null,
+        event.userId ?? null,
         event.timestamp,
         event.status,
         event.relayHops,
@@ -87,9 +96,13 @@ export class SosRepository {
   private rowToEvent(row: any): SosEvent {
     return {
       id: row.id,
-      deviceIdHash: row.device_id_hash,
-      latitude: parseFloat(row.latitude),
-      longitude: parseFloat(row.longitude),
+      bleUid: row.ble_uid,
+      flags: row.flags,
+      sequence: row.sequence,
+      receiverLat: row.receiver_lat != null ? parseFloat(row.receiver_lat) : undefined,
+      receiverLon: row.receiver_lon != null ? parseFloat(row.receiver_lon) : undefined,
+      rssi: row.rssi ?? undefined,
+      userId: row.user_id ?? undefined,
       timestamp: row.timestamp instanceof Date ? row.timestamp.toISOString() : row.timestamp,
       status: row.status,
       relayHops: row.relay_hops,

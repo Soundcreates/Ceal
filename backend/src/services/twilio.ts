@@ -9,10 +9,8 @@ import Twilio from 'twilio';
 import { env } from '../config.js';
 import { logger } from '../logger.js';
 
-// Use API Key auth (preferred for production over Account SID + Auth Token).
-const client = Twilio(env.TWILIO_API_KEY_SID, env.TWILIO_API_KEY_SECRET, {
-  accountSid: env.TWILIO_ACCOUNT_SID,
-});
+// Account SID + Auth Token auth (standard credential pair).
+const client = Twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
 
 export interface SmsPayload {
   sosId: string;

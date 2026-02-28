@@ -12,18 +12,23 @@ import { env } from '../config.js';
 const { Pool } = pg;
 
 const CREATE_SOS_EVENTS = `
-CREATE TABLE IF NOT EXISTS sos_events (
-  id              TEXT PRIMARY KEY,
-  device_id_hash  INTEGER[] NOT NULL,           -- 2-element array [byte0, byte1]
-  latitude        DOUBLE PRECISION NOT NULL,
-  longitude       DOUBLE PRECISION NOT NULL,
-  timestamp       TIMESTAMPTZ NOT NULL,
-  status          TEXT NOT NULL DEFAULT 'active'
-                  CHECK (status IN ('active', 'relayed', 'acknowledged', 'resolved', 'cancelled')),
-  relay_hops      INTEGER NOT NULL DEFAULT 0,
-  message         TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+DROP TABLE IF EXISTS sos_events CASCADE;
+CREATE TABLE sos_events (
+  id           TEXT PRIMARY KEY,
+  ble_uid      TEXT NOT NULL,
+  flags        INTEGER NOT NULL DEFAULT 0,
+  sequence     INTEGER NOT NULL DEFAULT 0,
+  receiver_lat DOUBLE PRECISION,
+  receiver_lon DOUBLE PRECISION,
+  rssi         INTEGER,
+  user_id      UUID REFERENCES users(id) ON DELETE SET NULL,
+  timestamp    TIMESTAMPTZ NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'active'
+               CHECK (status IN ('active', 'relayed', 'acknowledged', 'resolved', 'cancelled')),
+  relay_hops   INTEGER NOT NULL DEFAULT 0,
+  message      TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 `;
 
@@ -51,6 +56,7 @@ $$;
 `;
 
 const CREATE_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_sos_events_ble_uid  ON sos_events (ble_uid);
 CREATE INDEX IF NOT EXISTS idx_sos_events_status   ON sos_events (status);
 CREATE INDEX IF NOT EXISTS idx_sos_events_created  ON sos_events (created_at);
 `;
@@ -137,14 +143,8 @@ async function migrate(): Promise<void> {
 
   try {
     console.log('Running migrations...');
-    await pool.query(CREATE_SOS_EVENTS);
-    console.log('  ✅ sos_events table');
-    await pool.query(CREATE_UPDATED_AT_TRIGGER);
-    console.log('  ✅ updated_at trigger');
-    await pool.query(CREATE_INDEXES);
-    console.log('  ✅ indexes');
 
-    // User identity tables
+    // User identity tables must be created before sos_events (FK dependency)
     await pool.query(CREATE_USERS);
     console.log('  ✅ users table');
     await pool.query(CREATE_EMERGENCY_CONTACTS);
@@ -155,6 +155,14 @@ async function migrate(): Promise<void> {
     console.log('  ✅ user indexes');
     await pool.query(CREATE_USER_UPDATED_AT_TRIGGER);
     console.log('  ✅ users updated_at trigger');
+
+    // SOS events table (references users.id)
+    await pool.query(CREATE_SOS_EVENTS);
+    console.log('  ✅ sos_events table (V2)');
+    await pool.query(CREATE_UPDATED_AT_TRIGGER);
+    console.log('  ✅ updated_at trigger');
+    await pool.query(CREATE_INDEXES);
+    console.log('  ✅ indexes');
 
     console.log('Migrations complete.');
   } catch (err) {
