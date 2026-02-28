@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:aftermath/services/backend_service.dart';
 import 'package:aftermath/services/pending_events_db.dart';
 
 class SosNotificationService {
@@ -71,8 +72,14 @@ class SosNotificationService {
   // ---------------------------------------------------------------------------
 
   /// Show a high-priority notification for a detected SOS event.
-  Future<void> showSosDetected(PendingEvent event,
-      {double? distanceMetres}) async {
+  ///
+  /// If [victimProfile] is provided, the notification includes the victim's
+  /// name, emergency contacts, blood group, allergies, and conditions.
+  Future<void> showSosDetected(
+    PendingEvent event, {
+    double? distanceMetres,
+    VictimProfile? victimProfile,
+  }) async {
     if (!_initialised) await init();
 
     final distStr = distanceMetres != null
@@ -92,6 +99,7 @@ class SosNotificationService {
       autoCancel: true,
       playSound: true,
       enableVibration: true,
+      styleInformation: BigTextStyleInformation(''),
       actions: <AndroidNotificationAction>[
         AndroidNotificationAction(
           'call_112',
@@ -118,23 +126,67 @@ class SosNotificationService {
       macOS: darwinDetails,
     );
 
-    final body = 'Emergency nearby$distStr\n'
-        'UID: ${event.uid}\n'
-        'Time: ${DateTime.fromMillisecondsSinceEpoch(event.timestamp, isUtc: true).toLocal()}';
+    // ---------- Build rich notification body ----------
+    final buf = StringBuffer();
+
+    if (victimProfile != null && victimProfile.name != null) {
+      buf.writeln('VICTIM: ${victimProfile.name}');
+    } else {
+      buf.writeln('UID: ${event.uid}');
+    }
+
+    if (victimProfile?.phone != null) {
+      buf.writeln('Phone: ${victimProfile!.phone}');
+    }
+
+    if (victimProfile?.medical != null) {
+      final med = victimProfile!.medical!;
+      if (med.bloodGroup != null && med.bloodGroup!.isNotEmpty) {
+        buf.writeln('Blood Group: ${med.bloodGroup}');
+      }
+      if (med.allergies != null && med.allergies!.isNotEmpty) {
+        buf.writeln('Allergies: ${med.allergies}');
+      }
+      if (med.conditions != null && med.conditions!.isNotEmpty) {
+        buf.writeln('Conditions: ${med.conditions}');
+      }
+    }
+
+    if (victimProfile != null && victimProfile.contacts.isNotEmpty) {
+      final contactNames = victimProfile.contacts
+          .where((c) => c.name != null && c.name!.isNotEmpty)
+          .map((c) => '${c.name} (${c.phone ?? '?'})')
+          .join(', ');
+      if (contactNames.isNotEmpty) {
+        buf.writeln('Emergency Contacts: $contactNames');
+      }
+    }
+
+    buf.write('Location: ${event.receiverLat.toStringAsFixed(5)}, '
+        '${event.receiverLon.toStringAsFixed(5)}$distStr');
+    buf.writeln();
+    buf.write(
+      'Time: ${DateTime.fromMillisecondsSinceEpoch(event.timestamp, isUtc: true).toLocal()}',
+    );
+
+    final title = victimProfile?.name != null
+        ? 'SOS EMERGENCY — ${victimProfile!.name}'
+        : 'SOS EMERGENCY DETECTED';
 
     // Use a unique id per event (hash of id string).
     final notifId = event.id.hashCode.abs() % 0x7FFFFFFF;
 
     await _plugin.show(
       notifId,
-      'SOS EMERGENCY DETECTED',
-      body,
+      title,
+      buf.toString(),
       details,
       payload:
           '${event.receiverLat},${event.receiverLon}',
     );
 
-    debugPrint('[SosNotificationService] Showed notification for ${event.id}');
+    debugPrint('[SosNotificationService] Showed notification for ${event.id} '
+        '(victim=${victimProfile?.name ?? 'unknown'})');
   }
 
   // ---------------------------------------------------------------------------

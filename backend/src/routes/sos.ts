@@ -1,9 +1,10 @@
 /**
  * AfterMath Backend — SOS routes.
  *
- * POST /sos/ingest       — Receive & store an SOS event from mobile
- * POST /sos/acknowledge  — Acknowledge an active SOS
- * GET  /sos/active       — Fetch all active/relayed SOS events
+ * POST /sos/ingest                — Receive & store an SOS event from mobile
+ * POST /sos/acknowledge           — Acknowledge an active SOS
+ * GET  /sos/active                — Fetch all active/relayed SOS events
+ * GET  /sos/victim-profile/:bleUid — Look up victim profile by BLE UID
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -209,6 +210,69 @@ export function createSosRouter(pool: Pool): Router {
     } catch (err) {
       logger.error('Fetch active SOS events error', {
         reqId,
+        message: (err as Error).message,
+        stack: (err as Error).stack,
+      });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // GET /sos/victim-profile/:bleUid — Resolve victim identity from BLE UID
+  // -----------------------------------------------------------------------
+  router.get('/victim-profile/:bleUid', optionalAuth, async (req: Request, res: Response) => {
+    const reqId = rid(req);
+    const bleUidHex = String(req.params.bleUid ?? '').toLowerCase().replace(/[^0-9a-f]/g, '');
+    try {
+      if (bleUidHex.length !== 12) {
+        res.status(400).json({ error: 'BLE UID must be exactly 12 hex characters' });
+        return;
+      }
+
+      const t0 = Date.now();
+      const profile = await userRepo.findFullProfileByBleUid(bleUidHex);
+      const dbMs = Date.now() - t0;
+
+      if (!profile) {
+        logger.info('Victim profile lookup — no user for UID', { reqId, bleUid: bleUidHex, dbMs });
+        res.status(404).json({ error: 'No registered user for this BLE UID' });
+        return;
+      }
+
+      const { user, contacts, medical } = profile;
+      logger.info('Victim profile resolved', {
+        reqId,
+        bleUid: bleUidHex,
+        userId: user.id,
+        contactsCount: contacts.length,
+        hasMedical: medical !== null,
+        dbMs,
+      });
+
+      res.status(200).json({
+        user: {
+          id: user.id,
+          name: user.name,
+          phone: user.phone,
+          language: user.language,
+        },
+        contacts: contacts.map((c) => ({
+          name: c.name,
+          phone: c.phone,
+          priority: c.priority,
+        })),
+        medical: medical
+          ? {
+              bloodGroup: medical.bloodGroup,
+              allergies: medical.allergies,
+              conditions: medical.conditions,
+            }
+          : null,
+      });
+    } catch (err) {
+      logger.error('Victim profile lookup error', {
+        reqId,
+        bleUid: bleUidHex,
         message: (err as Error).message,
         stack: (err as Error).stack,
       });
