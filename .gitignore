@@ -3,6 +3,8 @@ dist
 build
 coverage
 .env
+# mobile/.env is a Flutter bundled asset (dev defaults, no real secrets) — allow it.
+!mobile/.env
 .DS_Store
 .idea
 .vscode

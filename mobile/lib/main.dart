@@ -6,6 +6,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/core/app_theme.dart';
@@ -17,11 +18,19 @@ import 'package:aftermath/features/settings/settings_screen.dart';
 import 'package:aftermath/features/sos/sos_screen.dart';
 import 'package:aftermath/providers.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load runtime environment variables from the bundled .env asset.
+  // Wrapped in try/catch so the app works in CI where the asset may be absent.
+  try {
+    await dotenv.load(fileName: '.env', mergeWith: {});
+  } catch (_) {
+    // No .env asset found — compiled defaults in Env will be used.
+  }
+
   // Lock to portrait for the SOS trigger (large button needs stable layout).
-  SystemChrome.setPreferredOrientations([
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
 

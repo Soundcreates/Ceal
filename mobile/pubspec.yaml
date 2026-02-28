@@ -46,6 +46,9 @@ dependencies:
   # Background tasks
   flutter_foreground_task: ^8.13.3
 
+  # Environment variables (.env file)
+  flutter_dotenv: ^5.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -54,3 +57,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - .env
