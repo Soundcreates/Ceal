@@ -52,7 +52,14 @@ class MyApp extends StatelessWidget {
   }
 }
 
-enum _OnboardingStep { welcome, permissions, signup, aadhaarQr, manualKyc, home }
+enum _OnboardingStep {
+  welcome,
+  permissions,
+  signup,
+  aadhaarQr,
+  manualKyc,
+  home,
+}
 
 class AppBootstrapScreen extends ConsumerStatefulWidget {
   const AppBootstrapScreen({super.key});
@@ -175,7 +182,7 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
       case _OnboardingStep.signup:
         return SignupScreen(
           onComplete: () {
-            setState(() => _step = _OnboardingStep.aadhaarQr);
+            setState(() => _step = _OnboardingStep.home);
           },
         );
       case _OnboardingStep.aadhaarQr:
@@ -193,7 +200,7 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
             setState(() => _step = _OnboardingStep.home);
           },
           onBackToScan: () {
-            setState(() => _step = _OnboardingStep.aadhaarQr);
+            setState(() => _step = _OnboardingStep.signup);
           },
         );
       case _OnboardingStep.home:

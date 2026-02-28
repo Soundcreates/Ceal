@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/core/nb_components.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'package:aftermath/main.dart';
 import 'package:aftermath/models/responder.dart';
 import 'package:aftermath/providers.dart';
 
@@ -76,6 +79,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             icon: Icons.bluetooth,
             label: 'Bluetooth',
           ),
+          Text('Bluetooth', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           NBCard(
             child: ListTile(
@@ -126,6 +130,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _syncContactsToSmsService();
               },
             ),
+          Text('SMS Fallback', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Enable SMS Fallback'),
+            subtitle: const Text(
+              'Send SMS to emergency contacts if BLE relay fails.',
+            ),
+            value: _smsFallbackEnabled,
+            onChanged: (val) async {
+              setState(() => _smsFallbackEnabled = val);
+              final settings = ref.read(settingsServiceProvider);
+              await settings.setSmsEnabled(val);
+              _syncContactsToSmsService();
+            },
           ),
           const SizedBox(height: 20),
 
@@ -133,6 +151,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const NBSectionHeader(
             icon: Icons.contacts_outlined,
             label: 'Emergency Contacts',
+          Text(
+            'Emergency Contacts',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           if (_contacts.isNotEmpty)
@@ -224,8 +245,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 32),
+          const Divider(height: 32),
+
+          // ------ Account Section ------
+          Text('Account', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Log Out', style: TextStyle(color: Colors.red)),
+            onTap: () => _handleLogout(context),
+          ),
         ],
       ),
+    );
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log Out'),
+        content: const Text('Are you sure you want to log out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    // Clear secure storage
+    const storage = FlutterSecureStorage();
+    await storage.delete(key: 'aftermath_auth_token');
+    await storage.delete(key: 'aftermath_user_id');
+
+    // Clear backend service token
+    ref.read(backendServiceProvider).authToken = '';
+
+    if (!mounted) return;
+
+    // Navigate back to bootstrap screen
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AppBootstrapScreen()),
+      (route) => false,
     );
   }
 
@@ -289,9 +359,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               final name = _contactNameCtrl.text.trim();
               final phone = _contactPhoneCtrl.text.trim();
               if (name.isNotEmpty && phone.isNotEmpty) {
-                setState(() => _contacts.add(
-                  EmergencyContact(name: name, phone: phone),
-                ));
+                setState(
+                  () =>
+                      _contacts.add(EmergencyContact(name: name, phone: phone)),
+                );
                 _persistContacts();
               }
               Navigator.of(ctx).pop();

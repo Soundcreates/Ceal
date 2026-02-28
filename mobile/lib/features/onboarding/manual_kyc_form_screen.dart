@@ -2,6 +2,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/core/nb_components.dart';
@@ -24,6 +25,8 @@ class ManualKycFormScreen extends ConsumerStatefulWidget {
 }
 
 class _ManualKycFormScreenState extends ConsumerState<ManualKycFormScreen> {
+  static const _storage = FlutterSecureStorage();
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _ageController = TextEditingController();
@@ -53,17 +56,21 @@ class _ManualKycFormScreenState extends ConsumerState<ManualKycFormScreen> {
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) return;
 
-    final userId = Env.onboardingUserId.trim();
-    if (userId.isEmpty) {
-      setState(() => _error = 'ONBOARDING_USER_ID is not configured');
-      return;
-    }
-
-    final age = int.parse(_ageController.text.trim());
     setState(() {
       _submitting = true;
       _error = null;
     });
+
+    final userId = await _storage.read(key: 'aftermath_user_id') ?? '';
+    if (userId.trim().isEmpty) {
+      setState(() {
+        _submitting = false;
+        _error = 'User ID not found. Please restart signup.';
+      });
+      return;
+    }
+
+    final age = int.parse(_ageController.text.trim());
 
     final backend = ref.read(backendServiceProvider);
     final result = await backend.submitManualKyc(
