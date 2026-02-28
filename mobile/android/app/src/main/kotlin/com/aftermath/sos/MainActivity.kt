@@ -16,7 +16,8 @@ class MainActivity : FlutterActivity() {
 
     private val volumeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == VolumeTriggerService.ACTION_DOUBLE_VOLUME_UP) { eventSink?.success("double_volume_up")
+            if (intent?.action == VolumeTriggerService.ACTION_DOUBLE_VOLUME_UP) {
+                eventSink?.success("double_volume_up")
             }
         }
     }
