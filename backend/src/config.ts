@@ -51,11 +51,21 @@ export type Env = z.infer<typeof envSchema>;
 function loadEnv(): Env {
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
-    console.error('❌  Invalid environment variables:');
-    for (const issue of result.error.issues) {
-      console.error(`   ${issue.path.join('.')}: ${issue.message}`);
+    // Filter out Twilio API Key errors if Account SID and Auth Token are present
+    const issues = result.error.issues.filter(issue => {
+      if (issue.path[0] === 'TWILIO_API_KEY_SID' || issue.path[0] === 'TWILIO_API_KEY_SECRET') {
+        // Ignore missing API Key if Account SID and Auth Token are present
+        return !(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+      }
+      return true;
+    });
+    if (issues.length > 0) {
+      console.error('❌  Invalid environment variables:');
+      for (const issue of issues) {
+        console.error(`   ${issue.path.join('.')}: ${issue.message}`);
+      }
+      process.exit(1);
     }
-    process.exit(1);
   }
   return result.data;
 }

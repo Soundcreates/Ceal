@@ -10,7 +10,7 @@ import { env } from '../config.js';
 import { logger } from '../logger.js';
 
 // Prefer API Key auth when available, fall back to Account SID + Auth Token.
-const client = env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET
+const client = (env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET)
   ? Twilio(env.TWILIO_API_KEY_SID, env.TWILIO_API_KEY_SECRET, {
       accountSid: env.TWILIO_ACCOUNT_SID,
     })
