@@ -55,14 +55,26 @@ class _AftermathAppState extends ConsumerState<AftermathApp> {
   }
 
   /// Wire up the BLE scanner → reassembler → mesh relay → alerts pipeline.
-  void _initServices() {
+  Future<void> _initServices() async {
+    // Initialise settings persistence.
+    final settings = ref.read(settingsServiceProvider);
+    await settings.init();
+
+    // Load SMS contacts from persisted settings.
+    final sms = ref.read(smsFallbackProvider);
+    sms.emergencyContacts = await settings.loadContacts();
+    sms.enabled = await settings.isSmsEnabled();
+
     final scanner = ref.read(bleScannerProvider);
     final reassembler = ref.read(packetReassemblerProvider);
     final relay = ref.read(meshRelayProvider);
     final alerts = ref.read(alertsNotifierProvider.notifier);
 
-    // Scanner feeds packets into the reassembler.
+    // Scanner feeds fragment packets into the reassembler.
     scanner.onPacketReceived = reassembler.addPacket;
+
+    // Scanner feeds CORE packets directly into the reassembler.
+    scanner.onCorePacketReceived = reassembler.addCorePacket;
 
     // Reassembler feeds completed SOS events into relay + alerts.
     reassembler.onSosReassembled = (event, deviceId) {

@@ -4,6 +4,7 @@
 /// uploaded once connectivity is restored.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -15,6 +16,7 @@ import 'package:aftermath/models/sos_event.dart';
 
 class QueueService {
   Database? _db;
+  Timer? _purgeTimer;
 
   // -------------------------------------------------------------------------
   // Initialisation
@@ -37,6 +39,13 @@ class QueueService {
         ''');
       },
     );
+
+    // Start periodic expired-event purge.
+    _purgeTimer ??= Timer.periodic(
+      const Duration(minutes: 2),
+      (_) => purgeExpired(),
+    );
+
     return _db!;
   }
 
@@ -103,6 +112,13 @@ class QueueService {
     return count;
   }
 
+  /// Delete a specific event by ID.
+  Future<void> delete(String sosId) async {
+    final db = await _getDb();
+    await db.delete(kQueueTable, where: 'id = ?', whereArgs: [sosId]);
+    debugPrint('[QueueService] Deleted $sosId.');
+  }
+
   /// Total number of events in the queue (uploaded + pending).
   Future<int> count() async {
     final db = await _getDb();
@@ -116,6 +132,8 @@ class QueueService {
   // -------------------------------------------------------------------------
 
   Future<void> dispose() async {
+    _purgeTimer?.cancel();
+    _purgeTimer = null;
     await _db?.close();
     _db = null;
   }

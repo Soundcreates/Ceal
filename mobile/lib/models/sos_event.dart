@@ -64,60 +64,40 @@ class SosEvent {
   final String? message;
 
   // -------------------------------------------------------------------------
-  // Compact GPS encoding (8 bytes total for lat + lon + deviceIdHash)
+  // Compact GPS encoding (10 bytes: 4B lat + 4B lon + 2B deviceIdHash)
   // -------------------------------------------------------------------------
 
-  /// Encode lat/lon/deviceIdHash into an 8-byte payload for BLE.
+  /// Encode lat/lon/deviceIdHash into a 10-byte payload for BLE fragments.
   ///
   /// Layout:
   /// ```
-  /// Bytes 0-2 : latitude  (3 bytes, unsigned, scaled)
-  /// Bytes 3-5 : longitude (3 bytes, unsigned, scaled)
-  /// Bytes 6-7 : deviceIdHash (2 bytes)
+  /// Bytes 0-3 : latitude      (int32, value × 1e7, big-endian)
+  /// Bytes 4-7 : longitude     (int32, value × 1e7, big-endian)
+  /// Bytes 8-9 : deviceIdHash  (2 bytes)
   /// ```
   Uint8List toCompactPayload() {
-    final buf = Uint8List(kBlePayloadSize);
-
-    // Shift lat from [-90, 90] → [0, 180], then scale.
-    final latScaled = ((latitude + 90.0) * kGpsScale).round();
-    // Shift lon from [-180, 180] → [0, 360], then scale.
-    final lonScaled = ((longitude + 180.0) * kGpsScale).round();
-
-    // Pack as 3 bytes each (big-endian).
-    buf[0] = (latScaled >> 16) & 0xFF;
-    buf[1] = (latScaled >> 8) & 0xFF;
-    buf[2] = latScaled & 0xFF;
-
-    buf[3] = (lonScaled >> 16) & 0xFF;
-    buf[4] = (lonScaled >> 8) & 0xFF;
-    buf[5] = lonScaled & 0xFF;
-
-    // Device ID hash.
-    buf[6] = deviceIdHash.isNotEmpty ? deviceIdHash[0] : 0;
-    buf[7] = deviceIdHash.length > 1 ? deviceIdHash[1] : 0;
-
+    final bd = ByteData(kBlePayloadSize);
+    bd.setInt32(0, (latitude * kGpsScale).round(), Endian.big);
+    bd.setInt32(4, (longitude * kGpsScale).round(), Endian.big);
+    final buf = bd.buffer.asUint8List();
+    buf[8] = deviceIdHash.isNotEmpty ? deviceIdHash[0] : 0;
+    buf[9] = deviceIdHash.length > 1 ? deviceIdHash[1] : 0;
     return buf;
   }
 
-  /// Decode an 8-byte compact payload back into partial SOS data.
+  /// Decode a 10-byte compact payload back into partial SOS data.
   static ({double latitude, double longitude, Uint8List deviceIdHash})
       fromCompactPayload(Uint8List payload) {
     if (payload.length < kBlePayloadSize) {
       throw ArgumentError('Payload too short: ${payload.length}');
     }
-
-    final latScaled =
-        (payload[0] << 16) | (payload[1] << 8) | payload[2];
-    final lonScaled =
-        (payload[3] << 16) | (payload[4] << 8) | payload[5];
-
-    final lat = (latScaled / kGpsScale) - 90.0;
-    final lon = (lonScaled / kGpsScale) - 180.0;
-
+    final bd = ByteData.sublistView(payload, 0, 10);
+    final lat = bd.getInt32(0, Endian.big) / kGpsScale;
+    final lon = bd.getInt32(4, Endian.big) / kGpsScale;
     return (
       latitude: lat,
       longitude: lon,
-      deviceIdHash: Uint8List.fromList([payload[6], payload[7]]),
+      deviceIdHash: Uint8List.fromList([payload[8], payload[9]]),
     );
   }
 

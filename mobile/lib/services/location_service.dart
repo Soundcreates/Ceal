@@ -46,32 +46,22 @@ class LocationService {
   // Compact encoding helpers
   // -------------------------------------------------------------------------
 
-  /// Encode latitude and longitude into a 6-byte compact format.
+  /// Encode latitude and longitude into an 8-byte compact format.
   ///
-  /// Layout: `[lat (3B)] [lon (3B)]` — shift-and-scale encoding.
+  /// Layout: `[lat (4B int32)] [lon (4B int32)]` — signed × 1e7 encoding.
   static Uint8List encodeLatLon(double latitude, double longitude) {
-    final buf = Uint8List(6);
-    final latScaled = ((latitude + 90.0) * kGpsScale).round();
-    final lonScaled = ((longitude + 180.0) * kGpsScale).round();
-
-    buf[0] = (latScaled >> 16) & 0xFF;
-    buf[1] = (latScaled >> 8) & 0xFF;
-    buf[2] = latScaled & 0xFF;
-
-    buf[3] = (lonScaled >> 16) & 0xFF;
-    buf[4] = (lonScaled >> 8) & 0xFF;
-    buf[5] = lonScaled & 0xFF;
-
-    return buf;
+    final bd = ByteData(8);
+    bd.setInt32(0, (latitude * kGpsScale).round(), Endian.big);
+    bd.setInt32(4, (longitude * kGpsScale).round(), Endian.big);
+    return bd.buffer.asUint8List();
   }
 
-  /// Decode a 6-byte buffer back to (latitude, longitude).
+  /// Decode an 8-byte buffer back to (latitude, longitude).
   static ({double latitude, double longitude}) decodeLatLon(Uint8List buf) {
-    final latScaled = (buf[0] << 16) | (buf[1] << 8) | buf[2];
-    final lonScaled = (buf[3] << 16) | (buf[4] << 8) | buf[5];
+    final bd = ByteData.sublistView(buf, 0, 8);
     return (
-      latitude: (latScaled / kGpsScale) - 90.0,
-      longitude: (lonScaled / kGpsScale) - 180.0,
+      latitude: bd.getInt32(0, Endian.big) / kGpsScale,
+      longitude: bd.getInt32(4, Endian.big) / kGpsScale,
     );
   }
 

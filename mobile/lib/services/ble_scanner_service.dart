@@ -11,15 +11,23 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/models/ble_packet.dart';
+import 'package:aftermath/models/core_sos_packet.dart';
 
-/// Callback invoked when a valid SOS packet is received.
+/// Callback invoked when a valid fragment packet is received.
 typedef OnPacketReceived = void Function(BlePacket packet, String deviceId);
 
-class BleScannerService {
-  BleScannerService({this.onPacketReceived});
+/// Callback invoked when a valid 20-byte CORE SOS packet is received.
+typedef OnCorePacketReceived = void Function(
+    CoreSosPacket packet, String deviceId);
 
-  /// External callback for each decoded packet.
+class BleScannerService {
+  BleScannerService({this.onPacketReceived, this.onCorePacketReceived});
+
+  /// External callback for each decoded fragment packet.
   OnPacketReceived? onPacketReceived;
+
+  /// External callback for each decoded 20-byte CORE SOS packet.
+  OnCorePacketReceived? onCorePacketReceived;
 
   StreamSubscription<List<ScanResult>>? _scanSub;
   bool _isScanning = false;
@@ -107,12 +115,30 @@ class BleScannerService {
   }
 
   void _tryDecode(Uint8List raw, String deviceId) {
-    if (raw.length < kBlePacketSize) {
+    // Length-based dispatch: 20 bytes → CORE packet, 13 bytes → fragment.
+    if (raw.length >= kCorePacketSize) {
+      _tryDecodeCorePacket(raw, deviceId);
+    } else if (raw.length >= kBlePacketSize) {
+      _tryDecodeFragment(raw, deviceId);
+    } else {
       debugPrint(
           '[BleScannerService] Packet too short (${raw.length}B), ignoring.');
-      return;
     }
+  }
 
+  void _tryDecodeCorePacket(Uint8List raw, String deviceId) {
+    try {
+      final packet = CoreSosPacket.fromBytes(raw);
+      debugPrint('[BleScannerService] Received CORE packet from $deviceId');
+      onCorePacketReceived?.call(packet, deviceId);
+    } catch (e) {
+      debugPrint('[BleScannerService] Failed to decode CORE packet: $e');
+      // Fall back to trying as a fragment.
+      _tryDecodeFragment(raw, deviceId);
+    }
+  }
+
+  void _tryDecodeFragment(Uint8List raw, String deviceId) {
     try {
       final packet = BlePacket.fromBytes(raw);
       debugPrint('[BleScannerService] Received $packet from $deviceId');

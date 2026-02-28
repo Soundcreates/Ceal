@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/core/constants.dart';
+import 'package:aftermath/models/core_sos_packet.dart';
 import 'package:aftermath/models/sos_event.dart';
 import 'package:aftermath/providers.dart';
 
@@ -103,10 +104,15 @@ class SosNotifier extends StateNotifier<SosState> {
     });
   }
 
-  /// Cancel the SOS during the countdown phase.
+  /// Cancel the SOS during any active phase.
   void cancelSos() {
     _countdownTimer?.cancel();
     _ackTimer?.cancel();
+
+    // Stop any in-progress BLE advertising.
+    final advertiser = _ref.read(bleAdvertiserProvider);
+    advertiser.stopAdvertising();
+
     state = const SosState(phase: SosPhase.cancelled);
 
     // Reset back to idle after a short delay.
@@ -137,9 +143,14 @@ class SosNotifier extends StateNotifier<SosState> {
     final lat = pos?.latitude ?? 0.0;
     final lon = pos?.longitude ?? 0.0;
 
-    // 2. Build event.
+    // 2. Get persistent device ID.
+    final deviceUuid = await _ref.read(deviceUuidProvider.future);
     final enc = _ref.read(encryptionServiceProvider);
-    final deviceHash = enc.deviceIdHash('local-device'); // TODO: real device ID
+    final deviceHash = enc.deviceIdHash(deviceUuid);
+    final deviceIdNumeric = deviceHash[0] << 24 |
+        deviceHash[1] << 16 |
+        (deviceHash.length > 2 ? deviceHash[2] : 0) << 8 |
+        (deviceHash.length > 3 ? deviceHash[3] : 0);
 
     final event = SosEvent(
       id: DateTime.now().millisecondsSinceEpoch.toRadixString(36),
@@ -151,12 +162,26 @@ class SosNotifier extends StateNotifier<SosState> {
 
     state = state.copyWith(phase: SosPhase.broadcasting, currentEvent: event);
 
-    // 3. Broadcast via BLE.
+    // 3. Broadcast CORE 20-byte packet first, then fragments.
     final advertiser = _ref.read(bleAdvertiserProvider);
     try {
+      final corePacket = CoreSosPacket(
+        version: kCorePacketVersion,
+        flags: CoreSosPacket.buildFlags(sosActive: true),
+        deviceId: deviceIdNumeric,
+        latitude: lat,
+        longitude: lon,
+        timestamp: event.timestamp.millisecondsSinceEpoch ~/ 1000,
+      );
+      await advertiser.broadcastCoreSos(corePacket);
       await advertiser.broadcastSos(event);
     } catch (e) {
       debugPrint('[SosNotifier] BLE broadcast error: $e');
+      state = state.copyWith(
+        phase: SosPhase.error,
+        errorMessage: 'BLE broadcast failed: $e',
+      );
+      // Continue to backend/SMS fallback despite BLE failure.
     }
 
     // 4. Attempt backend upload.

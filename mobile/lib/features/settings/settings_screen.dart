@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:aftermath/models/responder.dart';
 import 'package:aftermath/providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -19,7 +20,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   final _contactNameCtrl = TextEditingController();
   final _contactPhoneCtrl = TextEditingController();
-  final List<({String name, String phone})> _contacts = [];
+  final List<EmergencyContact> _contacts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = ref.read(settingsServiceProvider);
+    final contacts = await settings.loadContacts();
+    final smsEnabled = await settings.isSmsEnabled();
+    if (mounted) {
+      setState(() {
+        _contacts
+          ..clear()
+          ..addAll(contacts);
+        _smsFallbackEnabled = smsEnabled;
+      });
+      _syncContactsToSmsService();
+    }
+  }
+
+  Future<void> _persistContacts() async {
+    final settings = ref.read(settingsServiceProvider);
+    await settings.saveContacts(_contacts);
+    _syncContactsToSmsService();
+  }
+
+  void _syncContactsToSmsService() {
+    final sms = ref.read(smsFallbackProvider);
+    sms.emergencyContacts = List.of(_contacts);
+    sms.enabled = _smsFallbackEnabled;
+  }
 
   @override
   void dispose() {
@@ -69,7 +103,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: const Text(
                 'Send SMS to emergency contacts if BLE relay fails.'),
             value: _smsFallbackEnabled,
-            onChanged: (val) => setState(() => _smsFallbackEnabled = val),
+            onChanged: (val) async {
+              setState(() => _smsFallbackEnabled = val);
+              final settings = ref.read(settingsServiceProvider);
+              await settings.setSmsEnabled(val);
+              _syncContactsToSmsService();
+            },
           ),
           const Divider(height: 32),
 
@@ -84,8 +123,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: Text(c.phone),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
-                onPressed: () =>
-                    setState(() => _contacts.remove(c)),
+                onPressed: () {
+                  setState(() => _contacts.remove(c));
+                  _persistContacts();
+                },
               ),
             ),
           ),
@@ -156,7 +197,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               final name = _contactNameCtrl.text.trim();
               final phone = _contactPhoneCtrl.text.trim();
               if (name.isNotEmpty && phone.isNotEmpty) {
-                setState(() => _contacts.add((name: name, phone: phone)));
+                setState(() => _contacts.add(
+                  EmergencyContact(name: name, phone: phone),
+                ));
+                _persistContacts();
               }
               Navigator.of(ctx).pop();
             },
