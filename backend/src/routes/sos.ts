@@ -12,6 +12,7 @@ import { SosRepository } from '../db/sos-repository.js';
 import { startEscalationTimer, cancelEscalationTimer } from '../services/escalation.js';
 import { resolveUid, hexToUidBuffer } from '../services/uid-resolver.js';
 import { getFullUserProfile } from '../services/user-profile.js';
+import { sendContactSms } from '../services/twilio.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { logger } from '../logger.js';
 import type { Pool } from 'pg';
@@ -67,7 +68,7 @@ export function createSosRouter(pool: Pool): Router {
         userId,
       });
 
-      // --- Enriched escalation ---
+      // --- Contact notification + Enriched escalation ---
       if (event.status === 'active' || event.status === 'relayed') {
         let escalationProfile = undefined;
 
@@ -92,6 +93,29 @@ export function createSosRouter(pool: Pool): Router {
                   : null,
               };
               logger.info(`Escalation enriched for SOS ${event.id} with user profile`);
+
+              // Immediately notify the victim's emergency contacts — we already
+              // know who they are because the BLE UID resolved to a registered user.
+              const reachable = profile.contacts.filter((c) => c.phone);
+              if (reachable.length > 0) {
+                Promise.allSettled(
+                  reachable.map((c) =>
+                    sendContactSms({
+                      to: c.phone!,
+                      victimName: profile.user.name,
+                      sosId: event.id,
+                      latitude: event.receiverLat ?? 0,
+                      longitude: event.receiverLon ?? 0,
+                      timestamp: event.timestamp,
+                      message: event.message,
+                    }),
+                  ),
+                ).then(() => {
+                  logger.info(
+                    `Distress SMS dispatched to ${reachable.length} emergency contact(s) for SOS ${event.id}`,
+                  );
+                });
+              }
             }
           } catch (profileErr) {
             logger.error('Profile enrichment error', profileErr);
