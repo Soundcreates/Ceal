@@ -28,24 +28,34 @@ class SosState {
     this.countdownRemaining = kSosCancelCountdownSec,
     this.currentEvent,
     this.errorMessage,
+    this.backendConfirmed = false,
+    this.smsSent = false,
   });
 
   final SosPhase phase;
   final int countdownRemaining;
   final SosEvent? currentEvent;
   final String? errorMessage;
+  /// True when the backend returned a 2xx for this SOS event.
+  final bool backendConfirmed;
+  /// True when SMS fallback was dispatched.
+  final bool smsSent;
 
   SosState copyWith({
     SosPhase? phase,
     int? countdownRemaining,
     SosEvent? currentEvent,
     String? errorMessage,
+    bool? backendConfirmed,
+    bool? smsSent,
   }) {
     return SosState(
       phase: phase ?? this.phase,
       countdownRemaining: countdownRemaining ?? this.countdownRemaining,
       currentEvent: currentEvent ?? this.currentEvent,
       errorMessage: errorMessage ?? this.errorMessage,
+      backendConfirmed: backendConfirmed ?? this.backendConfirmed,
+      smsSent: smsSent ?? this.smsSent,
     );
   }
 }
@@ -140,19 +150,21 @@ class SosNotifier extends StateNotifier<SosState> {
 
     final uploaded = await _ref.read(backendServiceProvider).ingestSos(event);
     if (uploaded) {
-      state = state.copyWith(phase: SosPhase.sent);
+      state = state.copyWith(phase: SosPhase.sent, backendConfirmed: true);
       return;
     }
 
+    // Backend unreachable — queue locally and go straight to SMS fallback
+    // rather than waiting kSmsFallbackTimeout (30s) since we already know
+    // the server is down.
     await _ref.read(queueServiceProvider).enqueue(event);
-    _ackTimer = Timer(kSmsFallbackTimeout, () => _triggerSmsFallback(event));
-    state = state.copyWith(phase: SosPhase.sent);
+    await _triggerSmsFallback(event);
   }
 
   Future<void> _triggerSmsFallback(SosEvent event) async {
     state = state.copyWith(phase: SosPhase.smsFallback);
     await _ref.read(smsFallbackProvider).sendSos(event);
-    state = state.copyWith(phase: SosPhase.sent);
+    state = state.copyWith(phase: SosPhase.sent, smsSent: true);
   }
 
   @override

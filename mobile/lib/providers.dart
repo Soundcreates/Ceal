@@ -181,6 +181,17 @@ final bleUidProvider = FutureProvider<Uint8List>((ref) async {
 });
 
 /// Live BLE scan results — consumed by the broadcasting view to show nearby devices.
+///
+/// IMPORTANT: FlutterBluePlus.scanResults emits on every advertisement packet,
+/// which can fire at 30-100 Hz during active scanning. Watching it directly from
+/// a widget triggers rebuilds faster than the GPU surface can consume frames,
+/// causing BLASTBufferQueue exhaustion (a:7 max:5+2). We therefore cache the
+/// latest result and re-emit at a fixed 1 Hz, keeping rebuilds well within
+/// the display's vsync budget.
 final nearbyDevicesStreamProvider = StreamProvider.autoDispose<List<ScanResult>>((ref) {
-  return FlutterBluePlus.scanResults;
+  var latest = <ScanResult>[];
+  final sub = FlutterBluePlus.scanResults.listen((results) => latest = results);
+  ref.onDispose(sub.cancel);
+  // Poll the cached value once per second — smooth UI without frame flooding.
+  return Stream.periodic(const Duration(seconds: 1), (_) => latest);
 });
