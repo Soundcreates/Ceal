@@ -2,8 +2,8 @@
  * AfterMath Backend — SOS routes.
  *
  * POST /sos/ingest       — Receive & store an SOS event from mobile
- * POST /sos/acknowledge   — Acknowledge an active SOS
- * GET  /sos/active        — Fetch all active/relayed SOS events
+ * POST /sos/acknowledge  — Acknowledge an active SOS
+ * GET  /sos/active       — Fetch all active/relayed SOS events
  */
 
 import { Router, type Request, type Response } from 'express';

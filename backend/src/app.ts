@@ -15,6 +15,7 @@ import { apiLimiter } from './middleware/rate-limit.js';
 import { createSosRouter } from './routes/sos.js';
 import { createHealthRouter } from './routes/health.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createUsersRouter } from './routes/users.js';
 
 export function createApp(pool: Pool): express.Express {
   const app = express();
@@ -39,6 +40,7 @@ export function createApp(pool: Pool): express.Express {
   app.use('/v1/health', createHealthRouter(pool));
   app.use('/v1/auth', createAuthRouter());
   app.use('/v1/sos', createSosRouter(pool));
+  app.use('/v1/users', createUsersRouter(pool));
 
   // Root health check (convenience)
   app.get('/', (_req, res) => {

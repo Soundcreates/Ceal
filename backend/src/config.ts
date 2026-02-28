@@ -18,6 +18,9 @@ const envSchema = z.object({
   // BLE encryption secret (hex, 64 chars = 32 bytes)
   BLE_ENCRYPTION_SECRET: z.string().min(16),
 
+  // Server secret for deterministic BLE UID generation
+  SERVER_SECRET: z.string().min(16).default('aftermath-default-server-secret-change-me'),
+
   // Twilio
   TWILIO_ACCOUNT_SID: z.string().startsWith('AC'),
   TWILIO_AUTH_TOKEN: z.string().min(1),
