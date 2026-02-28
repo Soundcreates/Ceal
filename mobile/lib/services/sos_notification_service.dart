@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:aftermath/services/backend_service.dart';
 import 'package:aftermath/services/pending_events_db.dart';
+import 'package:aftermath/models/sos_type.dart';
 
 class SosNotificationService {
   SosNotificationService();
@@ -40,8 +41,9 @@ class SosNotificationService {
   Future<void> init() async {
     if (_initialised) return;
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -72,7 +74,8 @@ class SosNotificationService {
 
       await _plugin
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.createNotificationChannel(channel);
     }
 
@@ -156,7 +159,9 @@ class SosNotificationService {
 
     // RSSI distance estimate in the notification itself.
     if (rssi != null) {
-      buf.writeln('Proximity: ${_rssiToDistance(rssi)} (${_rssiLabel(rssi)}, $rssi dBm)');
+      buf.writeln(
+        'Proximity: ${_rssiToDistance(rssi)} (${_rssiLabel(rssi)}, $rssi dBm)',
+      );
     }
 
     if (victimProfile?.medical != null) {
@@ -182,16 +187,21 @@ class SosNotificationService {
       }
     }
 
-    buf.write('Location: ${event.receiverLat.toStringAsFixed(5)}, '
-        '${event.receiverLon.toStringAsFixed(5)}$distStr');
+    buf.write(
+      'Location: ${event.receiverLat.toStringAsFixed(5)}, '
+      '${event.receiverLon.toStringAsFixed(5)}$distStr',
+    );
     buf.writeln();
     buf.write(
       'Time: ${DateTime.fromMillisecondsSinceEpoch(event.timestamp, isUtc: true).toLocal()}',
     );
 
+    // Determine SOS type from flags.
+    final sosType = SosType.fromFlags(event.flags);
+
     final title = victimProfile?.name != null
-        ? 'SOS EMERGENCY — ${victimProfile!.name}'
-        : 'SOS EMERGENCY DETECTED';
+        ? '${sosType.label.toUpperCase()} — ${victimProfile!.name}'
+        : '${sosType.label.toUpperCase()} DETECTED';
 
     // ---------- Build JSON payload for tap handler ----------
     final payloadMap = <String, dynamic>{
@@ -200,6 +210,8 @@ class SosNotificationService {
       'lat': event.receiverLat,
       'lon': event.receiverLon,
       'rssi': rssi ?? event.rssi,
+      'sosType': sosType.name,
+      'sosTypeLabel': sosType.label,
       'timestamp': DateTime.fromMillisecondsSinceEpoch(
         event.timestamp,
         isUtc: true,
@@ -228,8 +240,10 @@ class SosNotificationService {
       payload: payloadJson,
     );
 
-    debugPrint('[SosNotificationService] Showed notification for ${event.id} '
-        '(victim=${victimProfile?.name ?? 'unknown'})');
+    debugPrint(
+      '[SosNotificationService] Showed notification for ${event.id} '
+      '(victim=${victimProfile?.name ?? 'unknown'})',
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -273,7 +287,9 @@ class SosNotificationService {
     // Tapping notification body → emit event so the app shows the victim popup.
     if (actionId == null || actionId.isEmpty) {
       if (data != null) {
-        debugPrint('[SosNotificationService] Emitting tap event for in-app popup');
+        debugPrint(
+          '[SosNotificationService] Emitting tap event for in-app popup',
+        );
         _tapController.add(data);
       } else if (lat != null && lon != null) {
         // Fallback: old-format payload, just open maps.

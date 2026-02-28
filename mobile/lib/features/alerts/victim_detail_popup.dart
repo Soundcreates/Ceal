@@ -8,6 +8,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:aftermath/models/sos_type.dart';
+
 /// Data bag passed from the notification tap into the popup.
 class VictimDetailData {
   const VictimDetailData({
@@ -23,6 +25,7 @@ class VictimDetailData {
     this.rssi,
     this.timestamp,
     this.uid,
+    this.sosType,
   });
 
   final String? eventId;
@@ -39,6 +42,7 @@ class VictimDetailData {
   final int? rssi;
   final String? timestamp;
   final String? uid;
+  final SosType? sosType;
 
   /// Convert RSSI to an approximate human-readable distance string.
   ///
@@ -70,15 +74,13 @@ class VictimDetailData {
 
   factory VictimDetailData.fromJsonMap(Map<String, dynamic> json) {
     final contactsRaw = json['contacts'] as List<dynamic>?;
-    final contactsList = contactsRaw
-        ?.map((c) {
-          final m = c as Map<String, dynamic>;
-          return {
-            'name': m['name']?.toString() ?? '',
-            'phone': m['phone']?.toString() ?? '',
-          };
-        })
-        .toList();
+    final contactsList = contactsRaw?.map((c) {
+      final m = c as Map<String, dynamic>;
+      return {
+        'name': m['name']?.toString() ?? '',
+        'phone': m['phone']?.toString() ?? '',
+      };
+    }).toList();
 
     return VictimDetailData(
       eventId: json['eventId'] as String?,
@@ -93,6 +95,12 @@ class VictimDetailData {
       rssi: json['rssi'] as int?,
       timestamp: json['timestamp'] as String?,
       uid: json['uid'] as String?,
+      sosType: json['sosType'] != null
+          ? SosType.values.firstWhere(
+              (t) => t.name == json['sosType'],
+              orElse: () => SosType.general,
+            )
+          : null,
     );
   }
 }
@@ -152,18 +160,24 @@ class _VictimDetailSheet extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFB71C1C),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              color: data.sosType?.color ?? const Color(0xFFB71C1C),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 28),
+                Icon(
+                  data.sosType?.icon ?? Icons.warning_amber_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     data.victimName != null
-                        ? 'SOS — ${data.victimName}'
-                        : 'SOS EMERGENCY',
+                        ? '${data.sosType?.label ?? 'SOS'} — ${data.victimName}'
+                        : data.sosType?.label.toUpperCase() ?? 'SOS EMERGENCY',
                     style: theme.textTheme.titleLarge?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -187,7 +201,10 @@ class _VictimDetailSheet extends StatelessWidget {
                   title: 'Proximity',
                   children: [
                     _DetailRow('Estimated distance', data.estimatedDistance),
-                    _DetailRow('Signal strength', '${data.signalLabel}${data.rssi != null ? " (${data.rssi} dBm)" : ""}'),
+                    _DetailRow(
+                      'Signal strength',
+                      '${data.signalLabel}${data.rssi != null ? " (${data.rssi} dBm)" : ""}',
+                    ),
                   ],
                 ),
 
@@ -201,9 +218,17 @@ class _VictimDetailSheet extends StatelessWidget {
                     if (data.victimName != null)
                       _DetailRow('Name', data.victimName!),
                     if (data.victimPhone != null)
-                      _DetailRow('Phone', data.victimPhone!, isTappable: true, onTap: () {
-                        launchUrl(Uri.parse('tel:${data.victimPhone}'), mode: LaunchMode.externalApplication);
-                      }),
+                      _DetailRow(
+                        'Phone',
+                        data.victimPhone!,
+                        isTappable: true,
+                        onTap: () {
+                          launchUrl(
+                            Uri.parse('tel:${data.victimPhone}'),
+                            mode: LaunchMode.externalApplication,
+                          );
+                        },
+                      ),
                     if (data.uid != null && data.victimName == null)
                       _DetailRow('BLE UID', data.uid!),
                   ],
@@ -241,7 +266,10 @@ class _VictimDetailSheet extends StatelessWidget {
                           onTap: () {
                             final phone = c['phone'];
                             if (phone != null && phone.isNotEmpty) {
-                              launchUrl(Uri.parse('tel:$phone'), mode: LaunchMode.externalApplication);
+                              launchUrl(
+                                Uri.parse('tel:$phone'),
+                                mode: LaunchMode.externalApplication,
+                              );
                             }
                           },
                         ),
@@ -277,9 +305,18 @@ class _VictimDetailSheet extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         icon: const Icon(Icons.call, color: Colors.white),
-                        label: const Text('Call 112', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          'Call 112',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         onPressed: () {
-                          launchUrl(Uri.parse('tel:112'), mode: LaunchMode.externalApplication);
+                          launchUrl(
+                            Uri.parse('tel:112'),
+                            mode: LaunchMode.externalApplication,
+                          );
                         },
                       ),
                     ),
@@ -291,11 +328,19 @@ class _VictimDetailSheet extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         icon: const Icon(Icons.map, color: Colors.white),
-                        label: const Text('Open Maps', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          'Open Maps',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         onPressed: () {
                           if (data.lat != null && data.lon != null) {
                             launchUrl(
-                              Uri.parse('https://maps.google.com/?q=${data.lat},${data.lon}'),
+                              Uri.parse(
+                                'https://maps.google.com/?q=${data.lat},${data.lon}',
+                              ),
                               mode: LaunchMode.externalApplication,
                             );
                           }
@@ -378,7 +423,12 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow(this.label, this.value, {this.isTappable = false, this.onTap});
+  const _DetailRow(
+    this.label,
+    this.value, {
+    this.isTappable = false,
+    this.onTap,
+  });
   final String label;
   final String value;
   final bool isTappable;
@@ -405,7 +455,9 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ),

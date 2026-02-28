@@ -8,7 +8,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { sosIngestSchema, sosAckSchema } from '../models/sos-event.js';
+import { sosIngestSchema, sosAckSchema, extractSosType } from '../models/sos-event.js';
 import { SosRepository } from '../db/sos-repository.js';
 import { UserRepository } from '../db/user-repository.js';
 import { startEscalationTimer, cancelEscalationTimer } from '../services/escalation.js';
@@ -99,7 +99,7 @@ export function createSosRouter(pool: Pool): Router {
             latitude: lat,
             longitude: lon,
             timestamp: event.timestamp,
-            message: event.message,
+            message: `[${extractSosType(data.flags)}] ${event.message ?? ''}`.trim(),
           }),
         ),
         // Escalation operator — immediate alert
@@ -108,7 +108,7 @@ export function createSosRouter(pool: Pool): Router {
           latitude: lat,
           longitude: lon,
           timestamp: event.timestamp,
-          message: event.message,
+          message: `[${extractSosType(data.flags)}] ${event.message ?? ''}`.trim(),
           victimName: profile?.user.name ?? null,
           contactsNotified: contactsToNotify.length,
           isReminder: false,
@@ -130,17 +130,21 @@ export function createSosRouter(pool: Pool): Router {
         logger.info('SOS escalation timer started', { reqId, id: event.id });
       }
 
+      // Extract SOS type label from flags.
+      const sosType = extractSosType(event.flags ?? data.flags);
+
       logger.info('SOS ingested OK', {
         reqId,
         id: event.id,
         bleUid: event.bleUid,
         status: event.status,
+        sosType,
         relayHops: event.relayHops,
         receiverLat: event.receiverLat,
         receiverLon: event.receiverLon,
         dbMs,
       });
-      res.status(201).json(event);
+      res.status(201).json({ ...event, sosType });
     } catch (err) {
       logger.error('SOS ingest unhandled error', {
         reqId,
@@ -205,8 +209,13 @@ export function createSosRouter(pool: Pool): Router {
       const t0 = Date.now();
       const events = await repo.findActive();
       const dbMs = Date.now() - t0;
+      // Enrich each event with sosType label.
+      const enriched = events.map(e => ({
+        ...e,
+        sosType: extractSosType(e.flags ?? 0),
+      }));
       logger.info('Active SOS events fetched', { reqId, count: events.length, dbMs });
-      res.status(200).json(events);
+      res.status(200).json(enriched);
     } catch (err) {
       logger.error('Fetch active SOS events error', {
         reqId,
@@ -263,10 +272,10 @@ export function createSosRouter(pool: Pool): Router {
         })),
         medical: medical
           ? {
-              bloodGroup: medical.bloodGroup,
-              allergies: medical.allergies,
-              conditions: medical.conditions,
-            }
+            bloodGroup: medical.bloodGroup,
+            allergies: medical.allergies,
+            conditions: medical.conditions,
+          }
           : null,
       });
     } catch (err) {

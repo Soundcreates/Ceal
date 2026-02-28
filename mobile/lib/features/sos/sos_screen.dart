@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/features/sos/sos_notifier.dart';
+import 'package:aftermath/models/sos_type.dart';
 import 'package:aftermath/providers.dart';
 
 class SosScreen extends ConsumerWidget {
@@ -36,14 +37,16 @@ class SosScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: Center(
-          child: _buildBody(context, sosState, notifier),
-        ),
+        child: Center(child: _buildBody(context, sosState, notifier)),
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context, SosState sosState, SosNotifier notifier) {
+  Widget _buildBody(
+    BuildContext context,
+    SosState sosState,
+    SosNotifier notifier,
+  ) {
     switch (sosState.phase) {
       case SosPhase.idle:
       case SosPhase.error:
@@ -57,6 +60,7 @@ class SosScreen extends ConsumerWidget {
       case SosPhase.countdown:
         return _CountdownView(
           remaining: sosState.countdownRemaining,
+          sosType: sosState.sosType,
           onCancel: () {
             HapticFeedback.mediumImpact();
             notifier.cancelSos();
@@ -166,9 +170,14 @@ class _IdleView extends StatelessWidget {
 }
 
 class _CountdownView extends StatelessWidget {
-  const _CountdownView({required this.remaining, required this.onCancel});
+  const _CountdownView({
+    required this.remaining,
+    required this.sosType,
+    required this.onCancel,
+  });
 
   final int remaining;
+  final SosType sosType;
   final VoidCallback onCancel;
 
   @override
@@ -176,16 +185,20 @@ class _CountdownView extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.warning_amber_rounded, size: 64, color: Colors.amber),
+        Icon(sosType.icon, size: 64, color: sosType.color),
         const SizedBox(height: 16),
-        Text('Sending SOS in', style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          'Sending ${sosType.label} in',
+          style: Theme.of(context).textTheme.titleLarge,
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 8),
         Text(
           '$remaining',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 72,
             fontWeight: FontWeight.bold,
-            color: Colors.amber,
+            color: sosType.color,
           ),
         ),
         const SizedBox(height: 24),
@@ -240,28 +253,28 @@ class _BroadcastingView extends ConsumerWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 20),
-          if (sorted.isNotEmpty) ..._buildDeviceList(context, sorted)
+          if (sorted.isNotEmpty)
+            ..._buildDeviceList(context, sorted)
           else
             Text(
               'Scanning for nearby devices...',
-              style: TextStyle(
-                color: Colors.white38,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.white38, fontSize: 13),
             ),
         ],
       ),
     );
   }
 
-  List<Widget> _buildDeviceList(BuildContext context, List<ScanResult> results) {
+  List<Widget> _buildDeviceList(
+    BuildContext context,
+    List<ScanResult> results,
+  ) {
     return [
       Text(
         '${results.length} device${results.length == 1 ? '' : 's'} nearby',
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium
-            ?.copyWith(color: Colors.white60),
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(color: Colors.white60),
       ),
       const SizedBox(height: 8),
       SizedBox(
@@ -272,18 +285,14 @@ class _BroadcastingView extends ConsumerWidget {
               const Divider(height: 1, color: Color(0x1FFFFFFF)),
           itemBuilder: (context, i) {
             final r = results[i];
-            final isAfterMath =
-                r.advertisementData.manufacturerData.containsKey(kManufacturerId);
+            final isAfterMath = r.advertisementData.manufacturerData
+                .containsKey(kManufacturerId);
             final advName = r.advertisementData.advName;
-            final label = advName.isNotEmpty
-                ? advName
-                : r.device.remoteId.str;
+            final label = advName.isNotEmpty ? advName : r.device.remoteId.str;
             return ListTile(
               dense: true,
               leading: Icon(
-                isAfterMath
-                    ? Icons.warning_amber_rounded
-                    : Icons.bluetooth,
+                isAfterMath ? Icons.warning_amber_rounded : Icons.bluetooth,
                 color: isAfterMath ? Colors.amber : Colors.white38,
                 size: 20,
               ),
@@ -334,10 +343,7 @@ class _RssiChip extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 4),
-        Text(
-          '$rssi dBm',
-          style: TextStyle(fontSize: 11, color: color),
-        ),
+        Text('$rssi dBm', style: TextStyle(fontSize: 11, color: color)),
       ],
     );
   }
@@ -401,9 +407,11 @@ class _SentView extends StatelessWidget {
     if (backendConfirmed) {
       subtitle = 'Alert uploaded to server and broadcast to nearby devices.';
     } else if (smsSent) {
-      subtitle = 'Server unreachable — SMS sent to emergency contacts. Alert queued and will upload when connection returns.';
+      subtitle =
+          'Server unreachable — SMS sent to emergency contacts. Alert queued and will upload when connection returns.';
     } else {
-      subtitle = 'Broadcast to nearby BLE devices. Alert queued — will upload to server when connection returns.';
+      subtitle =
+          'Broadcast to nearby BLE devices. Alert queued — will upload to server when connection returns.';
     }
 
     return Column(
@@ -426,10 +434,7 @@ class _SentView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        OutlinedButton(
-          onPressed: onReset,
-          child: const Text('Back'),
-        ),
+        OutlinedButton(onPressed: onReset, child: const Text('Back')),
       ],
     );
   }

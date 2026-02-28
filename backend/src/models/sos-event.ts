@@ -54,6 +54,28 @@ export const sosIngestSchema = z.object({
   rssi: z.number().int().optional(),
 });
 
+// ---------------------------------------------------------------------------
+// SOS Type helper — extract type label from flags byte bits 2-5
+// ---------------------------------------------------------------------------
+
+const SOS_TYPES = [
+  'General SOS',
+  'Fire Emergency',
+  'Crime Alert',
+  'Kidnap Alert',
+  'Medical Emergency',
+  'Natural Disaster',
+] as const;
+
+/**
+ * Extract a human-readable SOS type label from the flags byte.
+ * Bits 2-5 encode the type code (0-15). Unknown codes default to 'General SOS'.
+ */
+export function extractSosType(flags: number): string {
+  const code = (flags >> 2) & 0x0F;
+  return SOS_TYPES[code] ?? 'General SOS';
+}
+
 /**
  * Validates the POST /sos/acknowledge body.
  */
@@ -81,6 +103,8 @@ export interface SosEvent {
   rssi?: number;
   /** Resolved user ID (if BLE UID matched a registered user) */
   userId?: string;
+  /** Human-readable SOS type label extracted from flags */
+  sosType?: string;
 }
 
 export type SosIngestPayload = z.infer<typeof sosIngestSchema>;

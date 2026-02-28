@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/core/crc16.dart';
+import 'package:aftermath/models/sos_type.dart';
 
 const int kCorePacketVersion = 2;
 
@@ -23,6 +24,9 @@ class CoreSosPacket {
 
   bool get isSosActive => (flags & 0x01) != 0;
   bool get isMedicalEmergency => (flags & 0x02) != 0;
+
+  /// SOS type encoded in bits 2-5 of flags.
+  SosType get sosType => SosType.fromFlags(flags);
 
   String get bleUidHex =>
       bleUid.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
@@ -61,10 +65,13 @@ class CoreSosPacket {
   static int buildFlags({
     bool sosActive = true,
     bool medicalEmergency = false,
+    SosType sosType = SosType.general,
   }) {
     int f = 0;
     if (sosActive) f |= 0x01;
     if (medicalEmergency) f |= 0x02;
+    // Encode SOS type in bits 2-5.
+    f |= sosType.toByte();
     return f;
   }
 

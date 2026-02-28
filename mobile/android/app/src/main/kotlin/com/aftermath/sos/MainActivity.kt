@@ -1,9 +1,6 @@
 package com.aftermath.sos
 
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Build
 import android.telephony.SmsManager
 import io.flutter.embedding.android.FlutterActivity
@@ -14,13 +11,8 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var eventSink: EventChannel.EventSink? = null
 
-    private val volumeReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == VolumeTriggerService.ACTION_DOUBLE_VOLUME_UP) {
-                eventSink?.success("double_volume_up")
-            }
-        }
-    }
+    /** Stores a pending SOS type until the EventChannel sink is ready. */
+    private var pendingSosType: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -30,6 +22,11 @@ class MainActivity : FlutterActivity() {
                 object : EventChannel.StreamHandler {
                     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                         eventSink = events
+                        // Flush any SOS type that arrived before the sink was ready.
+                        pendingSosType?.let { type ->
+                            eventSink?.success(type)
+                            pendingSosType = null
+                        }
                     }
 
                     override fun onCancel(arguments: Any?) {
@@ -65,26 +62,36 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // Check if the initial launch Intent carries an SOS type.
+        handleSosIntent(intent)
     }
 
-    override fun onStart() {
-        super.onStart()
-        val filter = IntentFilter(VolumeTriggerService.ACTION_DOUBLE_VOLUME_UP)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(volumeReceiver, filter, RECEIVER_NOT_EXPORTED)
+    /**
+     * Called when the activity receives a new intent while already running
+     * (because of FLAG_ACTIVITY_SINGLE_TOP).  This is the hot-path for
+     * volume combos when the app is already in the foreground.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleSosIntent(intent)
+    }
+
+    /**
+     * Extract the SOS type from the intent extras and emit it to Flutter.
+     * If the event sink isn't ready yet (cold start), queue it.
+     */
+    private fun handleSosIntent(intent: Intent?) {
+        val sosType = intent?.getStringExtra(VolumeTriggerService.EXTRA_SOS_TYPE) ?: return
+        // Clear the extra so it doesn't re-fire on config changes.
+        intent.removeExtra(VolumeTriggerService.EXTRA_SOS_TYPE)
+
+        if (eventSink != null) {
+            eventSink?.success(sosType)
         } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(volumeReceiver, filter)
+            // Sink not ready yet (cold start) — queue it for onListen.
+            pendingSosType = sosType
         }
-    }
-
-    override fun onStop() {
-        try {
-            unregisterReceiver(volumeReceiver)
-        } catch (_: IllegalArgumentException) {
-            // Receiver is already unregistered.
-        }
-        super.onStop()
     }
 
     companion object {

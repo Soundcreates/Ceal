@@ -4,31 +4,22 @@ library;
 import 'dart:typed_data';
 
 import 'package:aftermath/core/constants.dart';
+import 'package:aftermath/models/sos_type.dart';
 
-enum SosStatus {
-  active,
-  relayed,
-  acknowledged,
-  resolved,
-  cancelled,
-}
+enum SosStatus { active, relayed, acknowledged, resolved, cancelled }
 
 class ReceiverLocation {
-  const ReceiverLocation({
-    required this.lat,
-    required this.lon,
-    this.accuracy,
-  });
+  const ReceiverLocation({required this.lat, required this.lon, this.accuracy});
 
   final double lat;
   final double lon;
   final double? accuracy;
 
   Map<String, dynamic> toJson() => {
-        'lat': lat,
-        'lon': lon,
-        if (accuracy != null) 'accuracy': accuracy,
-      };
+    'lat': lat,
+    'lon': lon,
+    if (accuracy != null) 'accuracy': accuracy,
+  };
 
   factory ReceiverLocation.fromJson(Map<String, dynamic> json) {
     return ReceiverLocation(
@@ -72,19 +63,22 @@ class SosEvent {
   Duration get age => DateTime.now().toUtc().difference(timestamp);
   bool get isExpired => age > kPacketMaxAge;
 
+  /// SOS type extracted from bits 2-5 of the flags byte.
+  SosType get sosType => SosType.fromFlags(flags);
+
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'bleUid': bleUidHex,
-        'flags': flags,
-        'sequence': sequence,
-        'timestamp': timestamp.toUtc().toIso8601String(),
-        'status': status.name,
-        'relayHops': relayHops,
-        if (receiverLocation != null)
-          'receiverLocation': receiverLocation!.toJson(),
-        if (rssi != null) 'rssi': rssi,
-        if (message != null) 'message': message,
-      };
+    'id': id,
+    'bleUid': bleUidHex,
+    'flags': flags,
+    'sequence': sequence,
+    'timestamp': timestamp.toUtc().toIso8601String(),
+    'status': status.name,
+    'relayHops': relayHops,
+    if (receiverLocation != null)
+      'receiverLocation': receiverLocation!.toJson(),
+    if (rssi != null) 'rssi': rssi,
+    if (message != null) 'message': message,
+  };
 
   factory SosEvent.fromJson(Map<String, dynamic> json) {
     final hex = json['bleUid'] as String? ?? '';
@@ -104,7 +98,9 @@ class SosEvent {
       status: SosStatus.values.byName((json['status'] as String?) ?? 'active'),
       relayHops: json['relayHops'] as int? ?? 0,
       receiverLocation: json['receiverLocation'] is Map<String, dynamic>
-          ? ReceiverLocation.fromJson(json['receiverLocation'] as Map<String, dynamic>)
+          ? ReceiverLocation.fromJson(
+              json['receiverLocation'] as Map<String, dynamic>,
+            )
           : null,
       rssi: json['rssi'] as int?,
       message: json['message'] as String?,

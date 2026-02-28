@@ -21,6 +21,7 @@ import 'package:aftermath/features/onboarding/welcome_screen.dart';
 import 'package:aftermath/features/settings/settings_screen.dart';
 import 'package:aftermath/features/sos/sos_notifier.dart';
 import 'package:aftermath/features/sos/sos_screen.dart';
+import 'package:aftermath/models/sos_type.dart';
 import 'package:aftermath/providers.dart';
 
 Future<void> main() async {
@@ -141,16 +142,18 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
     _volumeSubscription = _volumeEventChannel.receiveBroadcastStream().listen((
       dynamic event,
     ) {
-      if (!mounted || event != 'double_volume_up') return;
+      if (!mounted || event is! String) return;
+
+      final sosType = SosType.fromEventString(event);
 
       // Ensure the user is on the SOS screen.
       if (_step != _OnboardingStep.home) {
         setState(() => _step = _OnboardingStep.home);
       }
 
-      // Fire SOS immediately (starts the cancellable countdown).
+      // Fire SOS with the detected type (starts the cancellable countdown).
       HapticFeedback.heavyImpact();
-      ref.read(sosNotifierProvider.notifier).triggerSos();
+      ref.read(sosNotifierProvider.notifier).triggerSos(type: sosType);
     });
   }
 

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/models/core_sos_packet.dart';
 import 'package:aftermath/models/sos_event.dart';
+import 'package:aftermath/models/sos_type.dart';
 import 'package:aftermath/providers.dart';
 
 enum SosPhase {
@@ -30,16 +31,22 @@ class SosState {
     this.errorMessage,
     this.backendConfirmed = false,
     this.smsSent = false,
+    this.sosType = SosType.general,
   });
 
   final SosPhase phase;
   final int countdownRemaining;
   final SosEvent? currentEvent;
   final String? errorMessage;
+
   /// True when the backend returned a 2xx for this SOS event.
   final bool backendConfirmed;
+
   /// True when SMS fallback was dispatched.
   final bool smsSent;
+
+  /// The type of SOS being sent.
+  final SosType sosType;
 
   SosState copyWith({
     SosPhase? phase,
@@ -48,6 +55,7 @@ class SosState {
     String? errorMessage,
     bool? backendConfirmed,
     bool? smsSent,
+    SosType? sosType,
   }) {
     return SosState(
       phase: phase ?? this.phase,
@@ -56,6 +64,7 @@ class SosState {
       errorMessage: errorMessage ?? this.errorMessage,
       backendConfirmed: backendConfirmed ?? this.backendConfirmed,
       smsSent: smsSent ?? this.smsSent,
+      sosType: sosType ?? this.sosType,
     );
   }
 }
@@ -68,10 +77,10 @@ class SosNotifier extends StateNotifier<SosState> {
   Timer? _ackTimer;
   int _sequence = 0;
 
-  void triggerSos() {
+  void triggerSos({SosType type = SosType.general}) {
     if (state.phase != SosPhase.idle && state.phase != SosPhase.error) return;
 
-    state = const SosState(phase: SosPhase.countdown);
+    state = SosState(phase: SosPhase.countdown, sosType: type);
     _countdownTimer?.cancel();
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -114,7 +123,7 @@ class SosNotifier extends StateNotifier<SosState> {
 
     final corePacket = CoreSosPacket(
       version: kCorePacketVersion,
-      flags: CoreSosPacket.buildFlags(sosActive: true),
+      flags: CoreSosPacket.buildFlags(sosActive: true, sosType: state.sosType),
       bleUid: bleUid,
       sequence: seq,
     );
@@ -134,7 +143,10 @@ class SosNotifier extends StateNotifier<SosState> {
       await _ref.read(bleAdvertiserProvider).broadcastCoreSos(corePacket);
     } catch (e) {
       debugPrint('[SosNotifier] BLE broadcast error: $e');
-      state = state.copyWith(phase: SosPhase.error, errorMessage: 'BLE broadcast failed: $e');
+      state = state.copyWith(
+        phase: SosPhase.error,
+        errorMessage: 'BLE broadcast failed: $e',
+      );
     }
 
     final pos = await _ref.read(locationServiceProvider).getCurrentPosition();
