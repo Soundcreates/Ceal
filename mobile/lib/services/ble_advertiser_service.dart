@@ -18,11 +18,19 @@ class BleAdvertiserService {
   Future<void> broadcastCoreSos(CoreSosPacket packet) async {
     final raw = packet.toBytes();
 
+    // Android BLE controllers have a small hardware advertising-set limit
+    // (typically 4-5). Stop any active slot before each burst so we never
+    // exceed it, and wait long enough for the controller to fully release
+    // it before starting the next one.
     for (int burst = 0; burst < kAdvertiseBurstCount; burst++) {
+      await stopAdvertising(); // ensure previous slot is released
       await _advertiseRawBytes(raw);
-      await Future<void>.delayed(kChunkDelay);
+      // Hold for kBurstInterval so the receiver can pick up the packet,
+      // then stop explicitly rather than relying on the hardware timeout.
+      await Future<void>.delayed(kBurstInterval);
+      await stopAdvertising();
       if (burst < kAdvertiseBurstCount - 1) {
-        await Future<void>.delayed(kBurstInterval);
+        await Future<void>.delayed(kChunkDelay);
       }
     }
 
@@ -56,7 +64,7 @@ class BleAdvertiserService {
     final advertiseSettings = AdvertiseSettings(
       advertiseMode: AdvertiseMode.advertiseModeBalanced,
       connectable: false,
-      timeout: 1000,
+      timeout: 0, // 0 = advertise until stopped explicitly; we manage lifetime
       txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
     );
 

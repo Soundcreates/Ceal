@@ -53,7 +53,11 @@ class _AftermathAppState extends ConsumerState<AftermathApp> {
   @override
   void initState() {
     super.initState();
-    _initServices();
+    // Defer heavy service startup until after the first frame has rendered.
+    // Starting the foreground task plugin and BLE stack inside initState
+    // causes GPU buffer exhaustion (BLASTBufferQueue max frames reached)
+    // because the surface hasn't been committed yet.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initServices());
   }
 
   /// Wire up the always-on BLE SOS relay + auto-escalation pipeline.
