@@ -63,6 +63,7 @@ class AppForegroundService : Service() {
             val notificationManager =
                 getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
+            print("Process of creaing a notificatio service done")
         }
     }
 
