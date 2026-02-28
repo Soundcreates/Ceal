@@ -1,4 +1,4 @@
-/// Alert List Screen — shows all received SOS alerts.
+/// Alert List Screen — shows all received SOS alerts (BLE + backend).
 library;
 
 import 'package:flutter/material.dart';
@@ -6,19 +6,62 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/features/alerts/alert_card.dart';
 import 'package:aftermath/features/alerts/alerts_notifier.dart';
+import 'package:aftermath/models/sos_event.dart';
 
-class AlertListScreen extends ConsumerWidget {
+class AlertListScreen extends ConsumerStatefulWidget {
   const AlertListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final alerts = ref.watch(alertsNotifierProvider);
+  ConsumerState<AlertListScreen> createState() => _AlertListScreenState();
+}
+
+class _AlertListScreenState extends ConsumerState<AlertListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Fetch from backend as soon as the screen opens.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(alertsNotifierProvider.notifier).fetchFromBackend();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(alertsNotifierProvider);
     final notifier = ref.read(alertsNotifierProvider.notifier);
+    final alerts = state.alerts;
+
+    // Show error snackbar when the backend is unreachable.
+    ref.listen<AlertsState>(alertsNotifierProvider, (prev, next) {
+      if (next.lastError != null && next.lastError != prev?.lastError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.lastError!),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Received Alerts'),
         actions: [
+          // Refresh from backend
+          state.isLoading
+              ? const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh from server',
+                  onPressed: () => notifier.fetchFromBackend(),
+                ),
           if (alerts.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
@@ -28,7 +71,9 @@ class AlertListScreen extends ConsumerWidget {
         ],
       ),
       body: alerts.isEmpty
-          ? const _EmptyState()
+          ? state.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : const _EmptyState()
           : ListView.builder(
               padding: const EdgeInsets.only(top: 8, bottom: 80),
               itemCount: alerts.length,
@@ -36,7 +81,10 @@ class AlertListScreen extends ConsumerWidget {
                 final event = alerts[index];
                 return AlertCard(
                   event: event,
-                  onAcknowledge: () => notifier.acknowledge(event.id),
+                  onAcknowledge: event.status == SosStatus.active ||
+                          event.status == SosStatus.relayed
+                      ? () => notifier.acknowledge(event.id)
+                      : null,
                   onTap: () {
                     // Future: open map view centred on this alert.
                   },
@@ -51,7 +99,8 @@ class AlertListScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Clear all alerts?'),
-        content: const Text('This will remove all received alerts from the list.'),
+        content: const Text(
+            'This will remove all received alerts from the list.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),

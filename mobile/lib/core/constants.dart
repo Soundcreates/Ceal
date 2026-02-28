@@ -92,6 +92,9 @@ const String kApiSosIngest = '/sos/ingest';
 /// Endpoint: acknowledge an SOS event.
 const String kApiSosAck = '/sos/acknowledge';
 
+/// Endpoint: fetch currently active SOS events.
+const String kApiSosActive = '/sos/active';
+
 // ---------------------------------------------------------------------------
 // Local Database
 // ---------------------------------------------------------------------------

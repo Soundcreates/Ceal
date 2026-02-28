@@ -82,7 +82,7 @@ class BackendService {
 
   /// Get current active SOS events from the backend.
   Future<List<SosEvent>> fetchActiveEvents() async {
-    final url = Uri.parse('$_baseUrl/sos/active');
+    final url = Uri.parse('$_baseUrl$kApiSosActive');
     try {
       final response = await _client
           .get(url, headers: _headers)
