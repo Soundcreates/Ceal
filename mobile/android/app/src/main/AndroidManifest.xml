@@ -1,12 +1,44 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Bluetooth LE permissions (API 31+) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+
+    <!-- Legacy Bluetooth (API < 31) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- Location -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Network -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- SMS fallback -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+
+    <!-- Notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Vibration for SOS alerts -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+
     <application
-        android:label="mobile"
+        android:label="AfterMath"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
-        <uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -34,6 +66,21 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Foreground task service (flutter_foreground_task) -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundTaskService"
+            android:foregroundServiceType="connectedDevice"
+            android:exported="false" />
+
+        <!-- Boot-completed receiver to restart foreground scanning -->
+        <receiver
+            android:name="com.pravera.flutter_foreground_task.receiver.TaskStartReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
