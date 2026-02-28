@@ -1,8 +1,8 @@
-/// Foreground Service — keeps BLE scanning alive on Android when the app
-/// is in the background.
+/// Foreground Service — keeps the always-on BLE SOS relay alive on Android.
 ///
 /// Uses [flutter_foreground_task] to run a persistent foreground notification
-/// so Android does not kill the BLE scan process.
+/// ("Safety network active") so Android does not kill the BLE scan process.
+/// Starts automatically on app launch and on device boot.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -14,19 +14,20 @@ class ForegroundService {
   bool _initialised = false;
 
   // -------------------------------------------------------------------------
-  // Initialisation
+  // Initialisation — also auto-starts the service
   // -------------------------------------------------------------------------
 
-  /// Initialise the foreground task configuration.
+  /// Initialise the foreground task configuration and immediately start.
   /// Call once during app startup.
-  void init() {
+  Future<void> init() async {
     if (_initialised) return;
 
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'aftermath_foreground',
-        channelName: 'AfterMath Background Service',
-        channelDescription: 'Keeps BLE scanning active for emergency alerts.',
+        channelId: 'sos_relay_service',
+        channelName: 'Safety Network Service',
+        channelDescription:
+            'Keeps BLE scanning active 24/7 for emergency SOS detection.',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
       ),
@@ -44,6 +45,9 @@ class ForegroundService {
     );
     _initialised = true;
     debugPrint('[ForegroundService] Initialised.');
+
+    // Always-on: start the service immediately.
+    await start();
   }
 
   // -------------------------------------------------------------------------
@@ -61,7 +65,7 @@ class ForegroundService {
     }
 
     await FlutterForegroundTask.startService(
-      notificationTitle: kForegroundNotifTitle,
+      notificationTitle: 'Safety network active',
       notificationText: kForegroundNotifBody,
       callback: _foregroundCallback,
     );

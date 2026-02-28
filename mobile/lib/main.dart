@@ -56,7 +56,7 @@ class _AftermathAppState extends ConsumerState<AftermathApp> {
     _initServices();
   }
 
-  /// Wire up the BLE scanner → reassembler → mesh relay → alerts pipeline.
+  /// Wire up the always-on BLE SOS relay + auto-escalation pipeline.
   Future<void> _initServices() async {
     // Initialise settings persistence.
     final settings = ref.read(settingsServiceProvider);
@@ -67,22 +67,27 @@ class _AftermathAppState extends ConsumerState<AftermathApp> {
     sms.emergencyContacts = await settings.loadContacts();
     sms.enabled = await settings.isSmsEnabled();
 
+    // Legacy pipeline (kept for manual SOS trigger from UI):
     final scanner = ref.read(bleScannerProvider);
     final reassembler = ref.read(packetReassemblerProvider);
     final relay = ref.read(meshRelayProvider);
     final alerts = ref.read(alertsNotifierProvider.notifier);
 
-    // Scanner feeds CORE packets directly into the reassembler.
     scanner.onCorePacketReceived = reassembler.addCorePacket;
-
-    // Reassembler feeds completed SOS events into relay + alerts.
     reassembler.onSosReassembled = (event, deviceId, rssi) {
       relay.onSosReceived(event, deviceId, rssi);
       alerts.addAlert(event);
     };
 
-    // Initialise the foreground service (Android).
-    ref.read(foregroundServiceProvider).init();
+    // Always-on background relay — wire alerts notifier.
+    final bgRelay = ref.read(backgroundRelayProvider);
+    bgRelay.alertsNotifier = alerts;
+
+    // Start foreground service (Android persistent notification).
+    await ref.read(foregroundServiceProvider).init();
+
+    // Start always-on BLE scanning + auto-escalation.
+    await bgRelay.start();
   }
 
   @override
