@@ -1,6 +1,5 @@
 # Environment / secrets — never commit these
-# .env is committed intentionally (dev defaults, no real secrets).
-# For production secrets, create .env.local or .env.production and keep them out of git.
+.env
 .env.local
 .env.production
 .env.staging
