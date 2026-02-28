@@ -4,6 +4,7 @@ library;
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
@@ -13,15 +14,19 @@ import 'package:aftermath/core/encryption.dart';
 import 'package:aftermath/core/env.dart';
 import 'package:aftermath/core/permissions.dart';
 import 'package:aftermath/services/backend_service.dart';
+import 'package:aftermath/services/background_relay_service.dart';
 import 'package:aftermath/services/ble_advertiser_service.dart';
 import 'package:aftermath/services/ble_scanner_service.dart';
+import 'package:aftermath/services/connectivity_worker.dart';
 import 'package:aftermath/services/foreground_service.dart';
 import 'package:aftermath/services/location_service.dart';
 import 'package:aftermath/services/mesh_relay_service.dart';
 import 'package:aftermath/services/packet_reassembler.dart';
+import 'package:aftermath/services/pending_events_db.dart';
 import 'package:aftermath/services/queue_service.dart';
 import 'package:aftermath/services/settings_service.dart';
 import 'package:aftermath/services/sms_fallback_service.dart';
+import 'package:aftermath/services/sos_notification_service.dart';
 
 // ---------------------------------------------------------------------------
 // Singleton service providers
@@ -95,6 +100,47 @@ final smsFallbackProvider = Provider<SmsFallbackService>((ref) {
   return SmsFallbackService();
 });
 
+// ---------------------------------------------------------------------------
+// Always-on SOS relay services
+// ---------------------------------------------------------------------------
+
+/// Persistent pending-events database for offline-first queue.
+final pendingEventsDbProvider = Provider<PendingEventsDb>((ref) {
+  final db = PendingEventsDb();
+  ref.onDispose(() => db.dispose());
+  return db;
+});
+
+/// SOS local notification service.
+final sosNotificationServiceProvider = Provider<SosNotificationService>((ref) {
+  return SosNotificationService();
+});
+
+/// Connectivity worker — drains pending queue when network is available.
+final connectivityWorkerProvider = Provider<ConnectivityWorker>((ref) {
+  final worker = ConnectivityWorker(
+    pendingDb: ref.watch(pendingEventsDbProvider),
+    backendService: ref.watch(backendServiceProvider),
+  );
+  ref.onDispose(() => worker.dispose());
+  return worker;
+});
+
+/// Background relay service — the always-on BLE SOS detection + escalation engine.
+final backgroundRelayProvider = Provider<BackgroundRelayService>((ref) {
+  final svc = BackgroundRelayService(
+    scanner: ref.watch(bleScannerProvider),
+    advertiser: ref.watch(bleAdvertiserProvider),
+    locationService: ref.watch(locationServiceProvider),
+    pendingDb: ref.watch(pendingEventsDbProvider),
+    connectivityWorker: ref.watch(connectivityWorkerProvider),
+    smsService: ref.watch(smsFallbackProvider),
+    notificationService: ref.watch(sosNotificationServiceProvider),
+  );
+  ref.onDispose(() => svc.dispose());
+  return svc;
+});
+
 /// Persistent device UUID stored in secure storage.
 final deviceUuidProvider = FutureProvider<String>((ref) async {
   const storage = FlutterSecureStorage();
@@ -132,4 +178,9 @@ final bleUidProvider = FutureProvider<Uint8List>((ref) async {
   final hex = uid.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   await storage.write(key: key, value: hex);
   return uid;
+});
+
+/// Live BLE scan results — consumed by the broadcasting view to show nearby devices.
+final nearbyDevicesStreamProvider = StreamProvider.autoDispose<List<ScanResult>>((ref) {
+  return FlutterBluePlus.scanResults;
 });

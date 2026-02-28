@@ -96,25 +96,44 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                         : const Text('Grant Permissions'),
                   ),
                 ),
-              ] else ...[
+              ] else if (_result!.allGranted) ...[
+                // All critical permissions granted — allow continue.
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: FilledButton(
                     onPressed: widget.onComplete,
-                    child: Text(
-                      _result!.allGranted ? 'Continue' : 'Continue Anyway',
+                    child: const Text('Continue'),
+                  ),
+                ),
+              ] else ...[
+                // Blocking: critical permissions missing.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    'Grant all permissions to join the safety network.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.sosColor,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                if (!_result!.allGranted) ...[
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () =>
-                        ref.read(permissionServiceProvider).openSettings(),
-                    child: const Text('Open Settings'),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: FilledButton(
+                    onPressed: _requestPermissions,
+                    child: const Text('Retry Permissions'),
                   ),
-                ],
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () =>
+                      ref.read(permissionServiceProvider).openSettings(),
+                  child: const Text('Open Settings'),
+                ),
               ],
 
               const SizedBox(height: 32),

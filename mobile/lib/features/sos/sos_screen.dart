@@ -3,10 +3,13 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/features/sos/sos_notifier.dart';
+import 'package:aftermath/providers.dart';
 
 class SosScreen extends ConsumerWidget {
   const SosScreen({super.key});
@@ -66,11 +69,7 @@ class SosScreen extends ConsumerWidget {
           color: Colors.amber,
         );
       case SosPhase.broadcasting:
-        return const _StatusView(
-          icon: Icons.bluetooth_searching,
-          label: 'Broadcasting SOS via BLE...',
-          color: Colors.blue,
-        );
+        return const _BroadcastingView();
       case SosPhase.awaitingAck:
         return const _StatusView(
           icon: Icons.cloud_upload,
@@ -199,6 +198,146 @@ class _CountdownView extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Broadcasting view — shows status + live nearby device list
+// ---------------------------------------------------------------------------
+
+class _BroadcastingView extends ConsumerWidget {
+  const _BroadcastingView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scanAsync = ref.watch(nearbyDevicesStreamProvider);
+    final devices = scanAsync.valueOrNull ?? const [];
+    final sorted = [...devices]..sort((a, b) => b.rssi.compareTo(a.rssi));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 56,
+            height: 56,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Icon(Icons.bluetooth_searching, color: Colors.blue, size: 40),
+          const SizedBox(height: 12),
+          Text(
+            'Broadcasting SOS via BLE...',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 20),
+          if (sorted.isNotEmpty) ..._buildDeviceList(context, sorted)
+          else
+            Text(
+              'Scanning for nearby devices...',
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 13,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildDeviceList(BuildContext context, List<ScanResult> results) {
+    return [
+      Text(
+        '${results.length} device${results.length == 1 ? '' : 's'} nearby',
+        style: Theme.of(context)
+            .textTheme
+            .labelMedium
+            ?.copyWith(color: Colors.white60),
+      ),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 240,
+        child: ListView.separated(
+          itemCount: results.length,
+          separatorBuilder: (_, _) =>
+              const Divider(height: 1, color: Color(0x1FFFFFFF)),
+          itemBuilder: (context, i) {
+            final r = results[i];
+            final isAfterMath =
+                r.advertisementData.manufacturerData.containsKey(kManufacturerId);
+            final advName = r.advertisementData.advName;
+            final label = advName.isNotEmpty
+                ? advName
+                : r.device.remoteId.str;
+            return ListTile(
+              dense: true,
+              leading: Icon(
+                isAfterMath
+                    ? Icons.warning_amber_rounded
+                    : Icons.bluetooth,
+                color: isAfterMath ? Colors.amber : Colors.white38,
+                size: 20,
+              ),
+              title: Text(
+                label,
+                style: const TextStyle(fontSize: 13),
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: isAfterMath
+                  ? Text(
+                      'AfterMath device',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.amber.withValues(alpha: 0.8),
+                      ),
+                    )
+                  : null,
+              trailing: _RssiChip(rssi: r.rssi),
+            );
+          },
+        ),
+      ),
+    ];
+  }
+}
+
+class _RssiChip extends StatelessWidget {
+  const _RssiChip({required this.rssi});
+
+  final int rssi;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    final IconData icon;
+    if (rssi >= -60) {
+      color = Colors.greenAccent;
+      icon = Icons.signal_cellular_alt;
+    } else if (rssi >= -75) {
+      color = Colors.amber;
+      icon = Icons.signal_cellular_alt_2_bar;
+    } else {
+      color = Colors.redAccent;
+      icon = Icons.signal_cellular_alt_1_bar;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          '$rssi dBm',
+          style: TextStyle(fontSize: 11, color: color),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 class _StatusView extends StatelessWidget {
   const _StatusView({
