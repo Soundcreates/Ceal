@@ -12,8 +12,7 @@ import { z } from 'zod';
 import crypto from 'node:crypto';
 import { requireAuth } from '../middleware/auth.js';
 import { getFullUserProfile, getEmergencyContacts, getMedicalProfile } from '../services/user-profile.js';
-import { rowToUser } from '../services/uid-resolver.js';
-import { env } from '../config.js';
+import { rowToUser, generateBleUid } from '../services/uid-resolver.js';
 import { logger } from '../logger.js';
 import type { Pool } from 'pg';
 
@@ -43,19 +42,6 @@ const setMedicalSchema = z.object({
   allergies: z.string().max(1000).optional(),
   conditions: z.string().max(1000).optional(),
 });
-
-// ---------------------------------------------------------------------------
-// BLE UID generation
-// ---------------------------------------------------------------------------
-
-/**
- * Generate a deterministic 6-byte BLE UID from userId + server secret.
- * Uses SHA-256, then takes the first 6 bytes.
- */
-function generateBleUid(userId: string): Buffer {
-  const hash = crypto.createHash('sha256').update(userId + env.SERVER_SECRET).digest();
-  return hash.subarray(0, 6);
-}
 
 // ---------------------------------------------------------------------------
 // Router
