@@ -17,10 +17,11 @@ const useSsl =
 
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  ssl: useSsl ? { rejectUnauthorized: false } : false,
+  // Neon requires SSL; rejectUnauthorized:false trusts Neon's self-signed cert.
+  ssl: env.NODE_ENV === 'test' ? false : { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 30_000,  // allow Neon cold-start (can take ~10-20s)
 });
 
 pool.on('error', (err) => {

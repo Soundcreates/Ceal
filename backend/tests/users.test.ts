@@ -239,16 +239,11 @@ describe('SOS ingest with UID', () => {
   });
 
   it('resolves UID and stores user_id in SOS event', async () => {
-    // First query: resolveUid (SELECT from users)
-    mockQuery.mockResolvedValueOnce({ rows: [mockUserRow] });
-    // Second query: repo.upsert (INSERT into sos_events)
-    mockQuery.mockResolvedValueOnce({ rows: [sosDbRow] });
-    // Third query: getFullUserProfile → getUserById
-    mockQuery.mockResolvedValueOnce({ rows: [mockUserRow] });
-    // Fourth query: getEmergencyContacts
-    mockQuery.mockResolvedValueOnce({ rows: [mockContactRow] });
-    // Fifth query: getMedicalProfile
-    mockQuery.mockResolvedValueOnce({ rows: [mockMedicalRow] });
+    // Route: findFullProfileByBleUid (3 queries) → upsert
+    mockQuery.mockResolvedValueOnce({ rows: [mockUserRow] });   // findFullProfileByBleUid → users
+    mockQuery.mockResolvedValueOnce({ rows: [mockContactRow] }); // findFullProfileByBleUid → contacts
+    mockQuery.mockResolvedValueOnce({ rows: [mockMedicalRow] }); // findFullProfileByBleUid → medical
+    mockQuery.mockResolvedValueOnce({ rows: [sosDbRow] });       // repo.upsert (sosDbRow has user_id = mockUserRow.id)
 
     const res = await request(app)
       .post('/v1/sos/ingest')
@@ -259,9 +254,9 @@ describe('SOS ingest with UID', () => {
   });
 
   it('still ingests SOS when UID is not found', async () => {
-    // UID resolution miss
+    // findFullProfileByBleUid → no user found
     mockQuery.mockResolvedValueOnce({ rows: [] });
-    // repo.upsert
+    // repo.upsert (no userId)
     const noUserRow = { ...sosDbRow, user_id: null };
     mockQuery.mockResolvedValueOnce({ rows: [noUserRow] });
 
@@ -274,7 +269,7 @@ describe('SOS ingest with UID', () => {
   });
 
   it('still ingests SOS when UID resolves to no user', async () => {
-    // UID resolution miss
+    // findFullProfileByBleUid → no user found
     mockQuery.mockResolvedValueOnce({ rows: [] });
     const noUserRow = { ...sosDbRow, user_id: null };
     mockQuery.mockResolvedValueOnce({ rows: [noUserRow] });
@@ -370,16 +365,11 @@ describe('Escalation payload generation', () => {
       updated_at: new Date(),
     };
 
-    // resolveUid
-    mockQuery.mockResolvedValueOnce({ rows: [mockUserRow] });
-    // repo.upsert
-    mockQuery.mockResolvedValueOnce({ rows: [sosDbRow] });
-    // getFullUserProfile → getUserById
-    mockQuery.mockResolvedValueOnce({ rows: [mockUserRow] });
-    // getEmergencyContacts
-    mockQuery.mockResolvedValueOnce({ rows: [mockContactRow] });
-    // getMedicalProfile
-    mockQuery.mockResolvedValueOnce({ rows: [mockMedicalRow] });
+    // Route: findFullProfileByBleUid (3 queries) → upsert
+    mockQuery.mockResolvedValueOnce({ rows: [mockUserRow] });   // findFullProfileByBleUid → users
+    mockQuery.mockResolvedValueOnce({ rows: [mockContactRow] }); // findFullProfileByBleUid → contacts
+    mockQuery.mockResolvedValueOnce({ rows: [mockMedicalRow] }); // findFullProfileByBleUid → medical
+    mockQuery.mockResolvedValueOnce({ rows: [sosDbRow] });       // repo.upsert
 
     const res = await request(app)
       .post('/v1/sos/ingest')

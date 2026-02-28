@@ -25,8 +25,8 @@ const envSchema = z.object({
   // Twilio
   TWILIO_ACCOUNT_SID: z.string().startsWith('AC'),
   TWILIO_AUTH_TOKEN: z.string().min(1),
-  TWILIO_API_KEY_SID: z.string().startsWith('SK'),
-  TWILIO_API_KEY_SECRET: z.string().min(1),
+  TWILIO_API_KEY_SID: z.string().startsWith('SK').optional(),
+  TWILIO_API_KEY_SECRET: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().startsWith('+'),
   TWILIO_ESCALATION_NUMBER: z.string().startsWith('+'),
 
@@ -53,13 +53,23 @@ export type Env = z.infer<typeof envSchema>;
 function loadEnv(): Env {
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
-    console.error('❌  Invalid environment variables:');
-    for (const issue of result.error.issues) {
-      console.error(`   ${issue.path.join('.')}: ${issue.message}`);
+    // Filter out Twilio API Key errors if Account SID and Auth Token are present
+    const issues = result.error.issues.filter(issue => {
+      if (issue.path[0] === 'TWILIO_API_KEY_SID' || issue.path[0] === 'TWILIO_API_KEY_SECRET') {
+        // Ignore missing API Key if Account SID and Auth Token are present
+        return !(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+      }
+      return true;
+    });
+    if (issues.length > 0) {
+      console.error('Invalid environment variables:');
+      for (const issue of issues) {
+        console.error(`   ${issue.path.join('.')}: ${issue.message}`);
+      }
+      process.exit(1);
     }
-    process.exit(1);
   }
-  return result.data;
+  return result.data!;
 }
 
 export const env = loadEnv();

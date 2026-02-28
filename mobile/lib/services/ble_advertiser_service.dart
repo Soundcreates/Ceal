@@ -18,24 +18,44 @@ class BleAdvertiserService {
   Future<void> broadcastCoreSos(CoreSosPacket packet) async {
     final raw = packet.toBytes();
 
+    // Full hex dump + field breakdown so every broadcast is traceable.
+    final hexDump = raw.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
+    // CORE V2 layout: [version(0)] [flags(1)] [bleUid(2..7)] [seq(8)] [crc8(9)]
+    final version = raw.isNotEmpty ? '0x${raw[0].toRadixString(16).padLeft(2, '0')}' : '??';
+    final flags   = raw.length > 1 ? '0x${raw[1].toRadixString(16).padLeft(2, '0')}' : '??';
+    final uidHex  = raw.length >= 8
+        ? raw.sublist(2, 8).map((b) => b.toRadixString(16).padLeft(2, '0')).join(':')
+        : '??';
+    final seq  = raw.length > 8 ? raw[8] : -1;
+    final crc8 = raw.length > 9 ? '0x${raw[9].toRadixString(16).padLeft(2, '0')}' : '??';
+    debugPrint(
+      '[BleAdvertiserService] BEGIN CORE V2 broadcast | '
+      'len=${raw.length} ver=$version flags=$flags uid=$uidHex seq=$seq crc8=$crc8 | '
+      'hex: $hexDump',
+    );
+
     // Android BLE controllers have a small hardware advertising-set limit
     // (typically 4-5). Stop any active slot before each burst so we never
     // exceed it, and wait long enough for the controller to fully release
     // it before starting the next one.
     for (int burst = 0; burst < kAdvertiseBurstCount; burst++) {
+      debugPrint('[BleAdvertiserService] Burst ${burst + 1}/$kAdvertiseBurstCount — start');
       await stopAdvertising(); // ensure previous slot is released
       await _advertiseRawBytes(raw);
       // Hold for kBurstInterval so the receiver can pick up the packet,
       // then stop explicitly rather than relying on the hardware timeout.
       await Future<void>.delayed(kBurstInterval);
       await stopAdvertising();
+      debugPrint('[BleAdvertiserService] Burst ${burst + 1}/$kAdvertiseBurstCount — stopped');
       if (burst < kAdvertiseBurstCount - 1) {
         await Future<void>.delayed(kChunkDelay);
       }
     }
 
     await stopAdvertising();
-    debugPrint('[BleAdvertiserService] CORE V2 broadcast complete.');
+    debugPrint(
+      '[BleAdvertiserService] CORE V2 broadcast complete | uid=$uidHex seq=$seq',
+    );
   }
 
   Future<void> broadcastPacket(BlePacket packet) async {
@@ -68,14 +88,21 @@ class BleAdvertiserService {
       txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
     );
 
+    debugPrint(
+      '[BleAdvertiserService] _advertiseRawBytes | svcUuid=$kSosServiceUuid '
+      'mfgId=0x${kManufacturerId.toRadixString(16).padLeft(4, '0')} '
+      'payloadLen=${raw.length} isAdvertising=$_isAdvertising',
+    );
+
     try {
       await _peripheral.start(
         advertiseData: advertiseData,
         advertiseSettings: advertiseSettings,
       );
       _isAdvertising = true;
-    } catch (e) {
-      debugPrint('[BleAdvertiserService] Advertise error: $e');
+      debugPrint('[BleAdvertiserService] Advertising started OK');
+    } catch (e, st) {
+      debugPrint('[BleAdvertiserService] Advertise error: $e\n$st');
     }
   }
 

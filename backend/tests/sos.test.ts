@@ -61,20 +61,26 @@ function buildApp() {
 
 const validSos = {
   id: 'test-sos-001',
-  deviceIdHash: [0xAB, 0xCD],
-  latitude: 19.076,
-  longitude: 72.8777,
+  bleUid: 'aabbccddeeff',
+  flags: 1,
+  sequence: 42,
   timestamp: '2025-01-15T12:00:00.000Z',
-  status: 'active',
+  status: 'active' as const,
   relayHops: 0,
   message: 'Help!',
+  receiverLocation: { lat: 19.076, lon: 72.8777, accuracy: 5 },
+  rssi: -70,
 };
 
 const dbRow = {
   id: validSos.id,
-  device_id_hash: validSos.deviceIdHash,
-  latitude: validSos.latitude,
-  longitude: validSos.longitude,
+  ble_uid: validSos.bleUid,
+  flags: validSos.flags,
+  sequence: validSos.sequence,
+  receiver_lat: 19.076,
+  receiver_lon: 72.8777,
+  rssi: -70,
+  user_id: null,
   timestamp: new Date(validSos.timestamp),
   status: 'active',
   relay_hops: 0,
@@ -143,7 +149,9 @@ describe('SOS routes', () => {
 
   describe('POST /v1/sos/ingest', () => {
     it('returns 201 with valid SOS payload', async () => {
-      mockQuery.mockResolvedValueOnce({ rows: [dbRow] });
+      // Route: findFullProfileByBleUid (no user) → upsert
+      mockQuery.mockResolvedValueOnce({ rows: [] });       // user lookup → not found
+      mockQuery.mockResolvedValueOnce({ rows: [dbRow] }); // upsert
 
       const res = await request(app)
         .post('/v1/sos/ingest')
@@ -151,10 +159,10 @@ describe('SOS routes', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.id).toBe(validSos.id);
-      expect(res.body.latitude).toBe(validSos.latitude);
-      expect(res.body.longitude).toBe(validSos.longitude);
+      expect(res.body.bleUid).toBe(validSos.bleUid);
+      expect(res.body.receiverLat).toBe(validSos.receiverLocation.lat);
+      expect(res.body.receiverLon).toBe(validSos.receiverLocation.lon);
       expect(res.body.status).toBe('active');
-      expect(res.body.deviceIdHash).toEqual(validSos.deviceIdHash);
     });
 
     it('returns 400 for missing required fields', async () => {
@@ -166,18 +174,18 @@ describe('SOS routes', () => {
       expect(res.body.error).toBe('Invalid SOS payload');
     });
 
-    it('returns 400 for out-of-range latitude', async () => {
+    it('returns 400 for out-of-range receiver latitude', async () => {
       const res = await request(app)
         .post('/v1/sos/ingest')
-        .send({ ...validSos, latitude: 999 });
+        .send({ ...validSos, receiverLocation: { lat: 999, lon: 0 } });
 
       expect(res.status).toBe(400);
     });
 
-    it('returns 400 for invalid deviceIdHash', async () => {
+    it('returns 400 for invalid bleUid format', async () => {
       const res = await request(app)
         .post('/v1/sos/ingest')
-        .send({ ...validSos, deviceIdHash: [300, 0] });
+        .send({ ...validSos, bleUid: 'not_valid_hex!' });
 
       expect(res.status).toBe(400);
     });
@@ -193,7 +201,8 @@ describe('SOS routes', () => {
     it('works without optional message field', async () => {
       const { message: _, ...noMsg } = validSos;
       const row = { ...dbRow, message: null };
-      mockQuery.mockResolvedValueOnce({ rows: [row] });
+      mockQuery.mockResolvedValueOnce({ rows: [] });      // user lookup → not found
+      mockQuery.mockResolvedValueOnce({ rows: [row] });  // upsert
 
       const res = await request(app)
         .post('/v1/sos/ingest')
@@ -204,7 +213,8 @@ describe('SOS routes', () => {
     });
 
     it('accepts request with Bearer token', async () => {
-      mockQuery.mockResolvedValueOnce({ rows: [dbRow] });
+      mockQuery.mockResolvedValueOnce({ rows: [] });       // user lookup → not found
+      mockQuery.mockResolvedValueOnce({ rows: [dbRow] }); // upsert
       const token = signToken('user-1', 'responder');
 
       const res = await request(app)
@@ -303,7 +313,8 @@ describe('SOS model validation', () => {
     const statuses = ['active', 'relayed', 'acknowledged', 'resolved', 'cancelled'];
 
     for (const status of statuses) {
-      mockQuery.mockResolvedValueOnce({ rows: [{ ...dbRow, status }] });
+      mockQuery.mockResolvedValueOnce({ rows: [] });                               // user lookup → not found
+      mockQuery.mockResolvedValueOnce({ rows: [{ ...dbRow, status }] }); // upsert
       const res = await request(app)
         .post('/v1/sos/ingest')
         .send({ ...validSos, id: `test-${status}`, status });
@@ -316,7 +327,8 @@ describe('SOS model validation', () => {
 describe('Escalation timer', () => {
   it('starts timer on active SOS ingest', async () => {
     const app = buildApp();
-    mockQuery.mockResolvedValueOnce({ rows: [dbRow] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });       // user lookup → not found
+    mockQuery.mockResolvedValueOnce({ rows: [dbRow] }); // upsert
 
     const res = await request(app)
       .post('/v1/sos/ingest')
@@ -329,7 +341,8 @@ describe('Escalation timer', () => {
   it('cancels timer on acknowledge', async () => {
     const app = buildApp();
     // First ingest
-    mockQuery.mockResolvedValueOnce({ rows: [dbRow] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });       // user lookup → not found
+    mockQuery.mockResolvedValueOnce({ rows: [dbRow] }); // upsert
     await request(app).post('/v1/sos/ingest').send(validSos);
 
     // Then acknowledge
@@ -342,7 +355,7 @@ describe('Escalation timer', () => {
     expect(res.status).toBe(200);
   });
 
-  it('immediately sends distress SMS to emergency contacts on ingest', async () => {
+  it('immediately sends distress SMS to contacts AND escalation operator on ingest', async () => {
     const app = buildApp();
     mockQuery.mockReset();
     mockCreate.mockClear();
@@ -353,17 +366,20 @@ describe('Escalation timer', () => {
       phone: '+919999999998',
       ble_uid: Buffer.from(validSos.bleUid, 'hex'),
       language: 'en',
+      role: 'civilian',
+      kyc_status: 'pending',
       created_at: new Date(),
+      updated_at: new Date(),
     };
     const contactRow1 = { id: 'c-1', user_id: 'u-esc-1', name: 'Mom', phone: '+911111111111', priority: 1 };
     const contactRow2 = { id: 'c-2', user_id: 'u-esc-1', name: 'Dad', phone: '+912222222222', priority: 2 };
     const dbRowWithUser = { ...dbRow, user_id: 'u-esc-1' };
 
-    mockQuery.mockResolvedValueOnce({ rows: [userRow] });                   // resolveUid
+    // Sequence: findFullProfileByBleUid (users → contacts → medical) → upsert
+    mockQuery.mockResolvedValueOnce({ rows: [userRow] });                   // findFullProfileByBleUid → users
+    mockQuery.mockResolvedValueOnce({ rows: [contactRow1, contactRow2] }); // findFullProfileByBleUid → contacts
+    mockQuery.mockResolvedValueOnce({ rows: [] });                          // findFullProfileByBleUid → medical
     mockQuery.mockResolvedValueOnce({ rows: [dbRowWithUser] });             // upsert
-    mockQuery.mockResolvedValueOnce({ rows: [userRow] });                   // getUserById (profile enrichment)
-    mockQuery.mockResolvedValueOnce({ rows: [contactRow1, contactRow2] }); // getEmergencyContacts
-    mockQuery.mockResolvedValueOnce({ rows: [] });                          // getMedicalProfile
 
     const res = await request(app).post('/v1/sos/ingest').send(validSos);
     expect(res.status).toBe(201);
@@ -371,9 +387,11 @@ describe('Escalation timer', () => {
     // Allow the fire-and-forget Promise.allSettled to settle
     await new Promise((r) => setTimeout(r, 10));
 
-    // Both emergency contacts should have received an immediate SMS
+    // All three recipients should have received an immediate SMS
     const destinations = mockCreate.mock.calls.map((c: any[]) => c[0].to as string);
     expect(destinations).toContain('+911111111111'); // Mom
     expect(destinations).toContain('+912222222222'); // Dad
+    expect(destinations).toContain(process.env['TWILIO_ESCALATION_NUMBER'] ?? expect.any(String)); // operator
+    expect(mockCreate).toHaveBeenCalledTimes(3); // 2 contacts + 1 escalation
   });
 });

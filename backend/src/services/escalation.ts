@@ -1,12 +1,12 @@
 /**
  * AfterMath Backend — Escalation timer service.
  *
- * When a new SOS is ingested, a timer is started. If the SOS is still
- * active/relayed after the timeout, an SMS is sent to the escalation number.
+ * Tracks whether an SOS is acknowledged within the timeout window.
+ * An SMS is already sent immediately on ingest; this timer only logs if
+ * the event remains unacknowledged (no duplicate SMS).
  */
 
 import { SosRepository } from '../db/sos-repository.js';
-import { sendEscalationSms } from './twilio.js';
 import { logger } from '../logger.js';
 
 /** Default escalation timeout: 30 seconds (matches kSmsFallbackTimeout in mobile). */
@@ -21,10 +21,6 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
  */
 export function startEscalationTimer(
   sosId: string,
-  latitude: number,
-  longitude: number,
-  timestamp: string,
-  message: string | undefined,
   repo: SosRepository,
 ): void {
   // Clear any existing timer for this SOS ID (idempotent)
@@ -33,15 +29,13 @@ export function startEscalationTimer(
   const timer = setTimeout(async () => {
     timers.delete(sosId);
     try {
-      // Re-check if still active/relayed before sending
       const event = await repo.findById(sosId);
       if (!event || event.status === 'acknowledged' || event.status === 'resolved' || event.status === 'cancelled') {
-        logger.info(`Escalation skipped for ${sosId} — status: ${event?.status ?? 'not found'}`);
+        logger.info(`Escalation timer: ${sosId} already handled (status: ${event?.status ?? 'not found'})`);
         return;
       }
-
-      logger.warn(`SOS ${sosId} unacknowledged after ${ESCALATION_TIMEOUT_MS / 1000}s — sending SMS`);
-      await sendEscalationSms({ sosId, latitude, longitude, timestamp, message });
+      // SMS was already sent immediately on ingest — just log the warning.
+      logger.warn(`SOS ${sosId} still unacknowledged after ${ESCALATION_TIMEOUT_MS / 1000}s`);
     } catch (err) {
       logger.error(`Escalation timer error for ${sosId}`, err);
     }
@@ -50,7 +44,7 @@ export function startEscalationTimer(
   // Prevent the timer from keeping the process alive on shutdown
   timer.unref();
   timers.set(sosId, timer);
-  logger.debug(`Escalation timer started for ${sosId} (${ESCALATION_TIMEOUT_MS / 1000}s)`);
+  logger.info(`SOS escalation timer started`);
 }
 
 /**

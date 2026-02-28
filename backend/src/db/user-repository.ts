@@ -29,12 +29,16 @@ export class UserRepository {
 
   /**
    * Create a new user from signup data. Returns the created user.
-   * BLE UID is generated server-side (deterministic from userId + secret).
+   * If the caller provides `data.bleUid` (device-generated, 12 hex chars),
+   * that UID is used verbatim so the device's BLE broadcast matches the DB.
+   * Otherwise the server generates a deterministic UID from userId + secret.
    * Throws on duplicate phone or BLE UID (unique constraint violation).
    */
   async create(data: SignupPayload): Promise<User> {
     const id = randomUUID();
-    const bleUid = generateBleUid(id);
+    const bleUid = data.bleUid
+      ? Buffer.from(data.bleUid, 'hex')
+      : generateBleUid(id);
     const { rows } = await this.pool.query(
       `INSERT INTO users (id, name, phone, ble_uid, language)
        VALUES ($1, $2, $3, $4, $5)
@@ -76,6 +80,44 @@ export class UserRepository {
       [nullifierHash],
     );
     return rows.length > 0 ? this.rowToUser(rows[0]) : null;
+  }
+
+  /**
+   * Look up the full user profile (user + contacts + medical) by BLE UID hex string.
+   * Returns null if no registered user owns this UID.
+   */
+  async findFullProfileByBleUid(
+    bleUidHex: string,
+  ): Promise<{ user: User; contacts: EmergencyContact[]; medical: MedicalProfile | null } | null> {
+    // ble_uid is stored as BYTEA — decode hex to binary for the query
+    const { rows: userRows } = await this.pool.query(
+      `SELECT * FROM users WHERE ble_uid = decode($1, 'hex')`,
+      [bleUidHex],
+    );
+    if (userRows.length === 0) return null;
+    const user = this.rowToUser(userRows[0]);
+
+    const { rows: contactRows } = await this.pool.query(
+      `SELECT * FROM emergency_contacts WHERE user_id = $1 ORDER BY priority`,
+      [user.id],
+    );
+    const contacts: EmergencyContact[] = contactRows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      name: r.name ?? null,
+      phone: r.phone ?? null,
+      priority: r.priority,
+    }));
+
+    const { rows: medRows } = await this.pool.query(
+      `SELECT * FROM medical_profiles WHERE user_id = $1`,
+      [user.id],
+    );
+    const medical: MedicalProfile | null = medRows.length > 0
+      ? { userId: medRows[0].user_id, bloodGroup: medRows[0].blood_group ?? null, allergies: medRows[0].allergies ?? null, conditions: medRows[0].conditions ?? null }
+      : null;
+
+    return { user, contacts, medical };
   }
 
   /**
