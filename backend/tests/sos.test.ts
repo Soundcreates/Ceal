@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — SOS route tests.
+ * AfterMath Backend — SOS route tests (V2 privacy-first protocol).
  *
  * Uses a mocked PG pool so tests run entirely in-memory without a real database.
  */
@@ -56,26 +56,34 @@ function buildApp() {
   return app;
 }
 
+/** V2 payload — bleUid hex, receiver location, no deviceIdHash/lat/lon. */
 const validSos = {
-  id: 'test-sos-001',
-  deviceIdHash: [0xAB, 0xCD],
-  latitude: 19.076,
-  longitude: 72.8777,
+  id: 'uid:aabbccddee01:42',
+  bleUid: 'aabbccddee01',
+  flags: 1,
+  sequence: 42,
   timestamp: '2025-01-15T12:00:00.000Z',
   status: 'active',
   relayHops: 0,
+  receiverLocation: { lat: 19.076, lon: 72.8777 },
+  rssi: -65,
   message: 'Help!',
 };
 
+/** Simulated DB row returned by mock pool.query. */
 const dbRow = {
   id: validSos.id,
-  device_id_hash: validSos.deviceIdHash,
-  latitude: validSos.latitude,
-  longitude: validSos.longitude,
+  ble_uid: validSos.bleUid,
+  flags: validSos.flags,
+  sequence: validSos.sequence,
   timestamp: new Date(validSos.timestamp),
   status: 'active',
   relay_hops: 0,
   message: 'Help!',
+  receiver_lat: 19.076,
+  receiver_lon: 72.8777,
+  rssi: -65,
+  user_id: null,
   created_at: new Date(),
   updated_at: new Date(),
 };
@@ -139,7 +147,10 @@ describe('SOS routes', () => {
   // -------------------------------------------------------------------------
 
   describe('POST /v1/sos/ingest', () => {
-    it('returns 201 with valid SOS payload', async () => {
+    it('returns 201 with valid V2 SOS payload', async () => {
+      // 1st call: UID resolution (no match)
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+      // 2nd call: upsert
       mockQuery.mockResolvedValueOnce({ rows: [dbRow] });
 
       const res = await request(app)
@@ -148,10 +159,13 @@ describe('SOS routes', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.id).toBe(validSos.id);
-      expect(res.body.latitude).toBe(validSos.latitude);
-      expect(res.body.longitude).toBe(validSos.longitude);
+      expect(res.body.bleUid).toBe(validSos.bleUid);
+      expect(res.body.flags).toBe(validSos.flags);
+      expect(res.body.sequence).toBe(validSos.sequence);
       expect(res.body.status).toBe('active');
-      expect(res.body.deviceIdHash).toEqual(validSos.deviceIdHash);
+      expect(res.body.receiverLat).toBe(19.076);
+      expect(res.body.receiverLon).toBe(72.8777);
+      expect(res.body.rssi).toBe(-65);
     });
 
     it('returns 400 for missing required fields', async () => {
@@ -163,18 +177,18 @@ describe('SOS routes', () => {
       expect(res.body.error).toBe('Invalid SOS payload');
     });
 
-    it('returns 400 for out-of-range latitude', async () => {
+    it('returns 400 for invalid bleUid (wrong length)', async () => {
       const res = await request(app)
         .post('/v1/sos/ingest')
-        .send({ ...validSos, latitude: 999 });
+        .send({ ...validSos, bleUid: 'aabb' });
 
       expect(res.status).toBe(400);
     });
 
-    it('returns 400 for invalid deviceIdHash', async () => {
+    it('returns 400 for invalid bleUid (non-hex)', async () => {
       const res = await request(app)
         .post('/v1/sos/ingest')
-        .send({ ...validSos, deviceIdHash: [300, 0] });
+        .send({ ...validSos, bleUid: 'zzzzzzzzzzzz' });
 
       expect(res.status).toBe(400);
     });
@@ -190,6 +204,7 @@ describe('SOS routes', () => {
     it('works without optional message field', async () => {
       const { message: _, ...noMsg } = validSos;
       const row = { ...dbRow, message: null };
+      mockQuery.mockResolvedValueOnce({ rows: [] }); // UID resolution
       mockQuery.mockResolvedValueOnce({ rows: [row] });
 
       const res = await request(app)
@@ -200,7 +215,22 @@ describe('SOS routes', () => {
       expect(res.body.message).toBeUndefined();
     });
 
+    it('works without optional receiverLocation', async () => {
+      const { receiverLocation: _, ...noLoc } = validSos;
+      const row = { ...dbRow, receiver_lat: null, receiver_lon: null };
+      mockQuery.mockResolvedValueOnce({ rows: [] }); // UID resolution
+      mockQuery.mockResolvedValueOnce({ rows: [row] });
+
+      const res = await request(app)
+        .post('/v1/sos/ingest')
+        .send(noLoc);
+
+      expect(res.status).toBe(201);
+      expect(res.body.receiverLat).toBeUndefined();
+    });
+
     it('accepts request with Bearer token', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] }); // UID resolution
       mockQuery.mockResolvedValueOnce({ rows: [dbRow] });
       const token = signToken('user-1', 'responder');
 
@@ -263,6 +293,7 @@ describe('SOS routes', () => {
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body).toHaveLength(1);
       expect(res.body[0].id).toBe(validSos.id);
+      expect(res.body[0].bleUid).toBe(validSos.bleUid);
     });
 
     it('returns empty array when no active events', async () => {
@@ -300,6 +331,7 @@ describe('SOS model validation', () => {
     const statuses = ['active', 'relayed', 'acknowledged', 'resolved', 'cancelled'];
 
     for (const status of statuses) {
+      mockQuery.mockResolvedValueOnce({ rows: [] }); // UID resolution
       mockQuery.mockResolvedValueOnce({ rows: [{ ...dbRow, status }] });
       const res = await request(app)
         .post('/v1/sos/ingest')
@@ -308,11 +340,30 @@ describe('SOS model validation', () => {
       expect(res.status).toBe(201);
     }
   });
+
+  it('rejects sequence > 255', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/v1/sos/ingest')
+      .send({ ...validSos, sequence: 256 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects flags > 255', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/v1/sos/ingest')
+      .send({ ...validSos, flags: 256 });
+
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('Escalation timer', () => {
   it('starts timer on active SOS ingest', async () => {
     const app = buildApp();
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // UID resolution
     mockQuery.mockResolvedValueOnce({ rows: [dbRow] });
 
     const res = await request(app)
@@ -326,6 +377,7 @@ describe('Escalation timer', () => {
   it('cancels timer on acknowledge', async () => {
     const app = buildApp();
     // First ingest
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // UID resolution
     mockQuery.mockResolvedValueOnce({ rows: [dbRow] });
     await request(app).post('/v1/sos/ingest').send(validSos);
 
