@@ -136,15 +136,20 @@ class BackendService {
     required String phone,
     required String bleUid,
     String? name,
+    String language = 'en',
     List<Map<String, dynamic>>? emergencyContacts,
+    Map<String, dynamic>? medicalProfile,
   }) async {
     final url = Uri.parse('$_baseUrl$kApiOnboardingSignup');
     final payload = <String, dynamic>{
       'phone': phone,
       'bleUid': bleUid,
+      'language': language,
       if (name != null && name.isNotEmpty) 'name': name,
       if (emergencyContacts != null && emergencyContacts.isNotEmpty)
         'emergencyContacts': emergencyContacts,
+      if (medicalProfile != null && medicalProfile.isNotEmpty)
+        'medicalProfile': medicalProfile,
     };
     final body = jsonEncode(payload);
     debugPrint('[BackendService] → POST ${url.path} | phone=$phone bleUid=$bleUid');
