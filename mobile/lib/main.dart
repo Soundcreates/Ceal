@@ -1,140 +1,122 @@
+/// AfterMath — Offline-first BLE emergency alert mesh network.
+///
+/// Entry point. Bootstraps services, configures routing, and wires up the
+/// BLE scanner → PacketReassembler → MeshRelay → AlertsNotifier pipeline.
+library;
+
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/features/alerts/alert_list_screen.dart';
+import 'package:aftermath/features/alerts/alerts_notifier.dart';
+import 'package:aftermath/features/onboarding/permission_screen.dart';
+import 'package:aftermath/features/onboarding/welcome_screen.dart';
+import 'package:aftermath/features/settings/settings_screen.dart';
+import 'package:aftermath/features/sos/sos_screen.dart';
+import 'package:aftermath/providers.dart';
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Volume Trigger Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      ),
-      home: const MyHomePage(),
-    );
+  // Load runtime environment variables from the bundled .env asset.
+  // Wrapped in try/catch so the app works in CI where the asset may be absent.
+  try {
+    await dotenv.load(fileName: '.env', mergeWith: {});
+  } catch (_) {
+    // No .env asset found — compiled defaults in Env will be used.
   }
+
+  // Lock to portrait for the SOS trigger (large button needs stable layout).
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
+  runApp(const ProviderScope(child: AftermathApp()));
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+class AftermathApp extends ConsumerStatefulWidget {
+  const AftermathApp({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  ConsumerState<AftermathApp> createState() => _AftermathAppState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  static const EventChannel _volumeEventChannel = EventChannel(
-    'volume_trigger/events',
-  );
-  static const MethodChannel _methodChannel = MethodChannel(
-    'volume_trigger/methods',
-  );
-
-  StreamSubscription<dynamic>? _volumeSubscription;
-  int _doublePressCount = 0;
+class _AftermathAppState extends ConsumerState<AftermathApp> {
+  bool _onboarded = false;
+  bool _permissionsGranted = false;
 
   @override
   void initState() {
     super.initState();
-
-    if (Platform.isAndroid) {
-      _ensureNotificationPermission();
-      _volumeSubscription = _volumeEventChannel.receiveBroadcastStream().listen(
-        _onVolumeEvent,
-        onError: _onVolumeError,
-      );
-    }
+    _initServices();
   }
 
-  Future<void> _ensureNotificationPermission() async {
-    try {
-      final enabled =
-          await _methodChannel.invokeMethod<bool>('areNotificationsEnabled') ??
-          false;
-      if (enabled) return;
+  /// Wire up the BLE scanner → reassembler → mesh relay → alerts pipeline.
+  Future<void> _initServices() async {
+    // Initialise settings persistence.
+    final settings = ref.read(settingsServiceProvider);
+    await settings.init();
 
-      final granted =
-          await _methodChannel.invokeMethod<bool>(
-            'requestNotificationPermission',
-          ) ??
-          false;
-      if (!granted && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Notification permission denied. Foreground notification may be hidden.',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Notification permission check failed: $e')),
-      );
-    }
-  }
+    // Load SMS contacts from persisted settings.
+    final sms = ref.read(smsFallbackProvider);
+    sms.emergencyContacts = await settings.loadContacts();
+    sms.enabled = await settings.isSmsEnabled();
 
-  void _onVolumeEvent(dynamic event) {
-    if (!mounted) return;
+    final scanner = ref.read(bleScannerProvider);
+    final reassembler = ref.read(packetReassemblerProvider);
+    final relay = ref.read(meshRelayProvider);
+    final alerts = ref.read(alertsNotifierProvider.notifier);
 
-    if (event == 'double_volume_up') {
-      setState(() {
-        _doublePressCount++;
-      });
+    // Scanner feeds fragment packets into the reassembler.
+    scanner.onPacketReceived = reassembler.addPacket;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Volume Up pressed twice'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-  }
+    // Scanner feeds CORE packets directly into the reassembler.
+    scanner.onCorePacketReceived = reassembler.addCorePacket;
 
-  void _onVolumeError(dynamic error) {
-    if (!mounted) return;
+    // Reassembler feeds completed SOS events into relay + alerts.
+    reassembler.onSosReassembled = (event, deviceId) {
+      relay.onSosReceived(event, deviceId);
+      alerts.addAlert(event);
+    };
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Volume trigger error: $error')));
-  }
-
-  @override
-  void dispose() {
-    _volumeSubscription?.cancel();
-    super.dispose();
+    // Initialise the foreground service (Android).
+    ref.read(foregroundServiceProvider).init();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Volume Trigger Demo')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Double press the volume-up hardware button to trigger a UI notification.',
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Make sure Accessibility Service is enabled for this app in Android settings.',
-            ),
-            const SizedBox(height: 24),
-            Text('Detected double presses: $_doublePressCount'),
-          ],
-        ),
-      ),
+    return MaterialApp(
+      title: 'AfterMath',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.dark,
+      home: _buildHome(),
+      routes: {
+        '/alerts': (_) => const AlertListScreen(),
+        '/settings': (_) => const SettingsScreen(),
+      },
     );
+  }
+
+  Widget _buildHome() {
+    if (!_onboarded) {
+      return WelcomeScreen(
+        onGetStarted: () => setState(() => _onboarded = true),
+      );
+    }
+
+    if (!_permissionsGranted) {
+      return PermissionScreen(
+        onComplete: () => setState(() => _permissionsGranted = true),
+      );
+    }
+
+    return const SosScreen();
   }
 }

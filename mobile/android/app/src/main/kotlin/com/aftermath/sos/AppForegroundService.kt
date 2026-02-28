@@ -1,4 +1,4 @@
-package com.example.mobile
+package com.aftermath.sos
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
 class AppForegroundService : Service() {
+    
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -72,5 +73,6 @@ class AppForegroundService : Service() {
     companion object {
         private const val CHANNEL_ID = "volume_trigger_service_channel"
         private const val NOTIFICATION_ID = 1001
+        const val ACTION_STOP_BUTTON= "FOREGROUND_STOP"
     }
 }
