@@ -23,6 +23,7 @@ import 'package:aftermath/models/responder.dart';
 import 'package:aftermath/models/sos_event.dart';
 import 'package:aftermath/services/ble_scanner_service.dart';
 import 'package:aftermath/services/ble_advertiser_service.dart';
+import 'package:aftermath/services/backend_service.dart';
 import 'package:aftermath/services/connectivity_worker.dart';
 import 'package:aftermath/services/location_service.dart';
 import 'package:aftermath/services/pending_events_db.dart';
@@ -45,6 +46,7 @@ class BackgroundRelayService {
     required this.locationService,
     required this.pendingDb,
     required this.connectivityWorker,
+    required this.backendService,
     required this.smsService,
     required this.notificationService,
     this.alertsNotifier,
@@ -55,6 +57,7 @@ class BackgroundRelayService {
   final LocationService locationService;
   final PendingEventsDb pendingDb;
   final ConnectivityWorker connectivityWorker;
+  final BackendService backendService;
   final SmsFallbackService smsService;
   final SosNotificationService notificationService;
   AlertsNotifier? alertsNotifier;
@@ -134,20 +137,22 @@ class BackgroundRelayService {
 
   Future<void> _handleNewSos(
       CoreSosPacket packet, String deviceId, int rssi) async {
+    final bleUid = packet.bleUidHex;
+
     // 1. Get location.
     final pos = await locationService.getCurrentPosition();
     final lat = pos?.latitude ?? 0.0;
     final lon = pos?.longitude ?? 0.0;
     debugPrint(
-      '[BackgroundRelay] Location for uid=${packet.bleUidHex}: '
+      '[BackgroundRelay] Location for uid=$bleUid: '
       'lat=$lat lon=$lon acc=${pos != null ? pos.accuracy.toStringAsFixed(1) : 'unknown'}m',
     );
 
     // 2. Build pending event.
-    final eventId = 'uid:${packet.bleUidHex}:${packet.sequence}';
+    final eventId = 'uid:$bleUid:${packet.sequence}';
     final pe = PendingEvent(
       id: eventId,
-      uid: packet.bleUidHex,
+      uid: bleUid,
       flags: packet.flags,
       sequence: packet.sequence,
       receiverLat: lat,
@@ -178,29 +183,59 @@ class BackgroundRelayService {
     // 5. Push to UI alert list.
     alertsNotifier?.addAlert(sosEvent);
 
-    // 6. Show high-priority notification.
-    double? distance;
-    if (pos != null) {
-      // Rough estimate — we don't know sender's location, so skip distance.
-      // Future: use RSSI-based distance estimation.
+    // 6. Look up victim profile from backend DB via BLE UID.
+    //    Uses whatever connectivity is available (mobile data / WiFi) — no waiting.
+    VictimProfile? victimProfile;
+    try {
+      debugPrint('[BackgroundRelay] Looking up victim profile for uid=$bleUid');
+      victimProfile = await backendService.lookupVictimProfile(bleUid);
+      if (victimProfile != null) {
+        debugPrint(
+          '[BackgroundRelay] Victim resolved: '
+          'name=${victimProfile.name} phone=${victimProfile.phone} '
+          'contacts=${victimProfile.contacts.length} '
+          'blood=${victimProfile.medical?.bloodGroup ?? 'unknown'}',
+        );
+      } else {
+        debugPrint('[BackgroundRelay] No registered victim for uid=$bleUid');
+      }
+    } catch (e) {
+      debugPrint('[BackgroundRelay] Victim profile lookup failed: $e');
     }
-    await notificationService.showSosDetected(pe, distanceMetres: distance);
 
-    // 7. Attempt immediate SMS (Android).
+    // 7. Show high-priority notification enriched with victim info.
+    await notificationService.showSosDetected(
+      pe,
+      victimProfile: victimProfile,
+    );
+
+    // 8. IMMEDIATELY ingest to backend (triggers Twilio SMS to contacts).
+    //    Do NOT gate on connectivity — attempt now with whatever network is
+    //    available. If it fails, the event is already in the local queue and
+    //    ConnectivityWorker will retry when network returns.
+    debugPrint('[BackgroundRelay] Immediately ingesting ${pe.id} to backend');
+    try {
+      final ok = await backendService.ingestSos(sosEvent);
+      if (ok) {
+        await pendingDb.markSentToBackend(pe.id);
+        debugPrint('[BackgroundRelay] Backend ingest OK for ${pe.id}');
+      } else {
+        debugPrint('[BackgroundRelay] Backend ingest returned non-2xx for ${pe.id}');
+      }
+    } catch (e) {
+      debugPrint('[BackgroundRelay] Backend ingest failed (will retry): $e');
+    }
+
+    // 9. Attempt immediate SMS from device (Android) as belt-and-suspenders.
     if (kAutoSmsEnabled && Platform.isAndroid) {
-      debugPrint('[BackgroundRelay] Attempting SMS fallback for ${pe.id}');
+      debugPrint('[BackgroundRelay] Attempting device SMS fallback for ${pe.id}');
       await _sendSmsSafe(pe);
     }
 
-    // 8. Try immediate backend upload.
-    final hasNet = await connectivityWorker.hasConnectivity();
-    debugPrint('[BackgroundRelay] Connectivity check for ${pe.id}: hasNet=$hasNet');
-    if (hasNet) {
-      debugPrint('[BackgroundRelay] Draining queue ($queueDepth pending)');
-      unawaited(connectivityWorker.drainQueue());
-    }
+    // 10. Drain any other pending events in the queue.
+    unawaited(connectivityWorker.drainQueue());
 
-    // 9. Re-broadcast via BLE mesh.
+    // 11. Re-broadcast via BLE mesh.
     _rebroadcast(packet);
   }
 

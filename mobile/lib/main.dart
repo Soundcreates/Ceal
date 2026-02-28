@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-enum _OnboardingStep { welcome, permissions, signup, aadhaarQr, home }
+enum _OnboardingStep { welcome, permissions, signup, aadhaarQr, manualKyc, home }
 
 class AppBootstrapScreen extends ConsumerStatefulWidget {
   const AppBootstrapScreen({super.key});

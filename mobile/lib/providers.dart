@@ -134,6 +134,7 @@ final backgroundRelayProvider = Provider<BackgroundRelayService>((ref) {
     locationService: ref.watch(locationServiceProvider),
     pendingDb: ref.watch(pendingEventsDbProvider),
     connectivityWorker: ref.watch(connectivityWorkerProvider),
+    backendService: ref.watch(backendServiceProvider),
     smsService: ref.watch(smsFallbackProvider),
     notificationService: ref.watch(sosNotificationServiceProvider),
   );

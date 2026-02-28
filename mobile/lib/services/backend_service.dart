@@ -57,6 +57,67 @@ class SignupResult {
   final String? error;
 }
 
+/// Profile data returned by the victim-profile lookup endpoint.
+class VictimProfile {
+  const VictimProfile({
+    this.userId,
+    this.name,
+    this.phone,
+    this.language,
+    this.contacts = const [],
+    this.medical,
+  });
+
+  final String? userId;
+  final String? name;
+  final String? phone;
+  final String? language;
+  final List<VictimContact> contacts;
+  final VictimMedical? medical;
+
+  factory VictimProfile.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>? ?? {};
+    final contactList = (json['contacts'] as List<dynamic>?)
+        ?.map((c) => VictimContact.fromJson(c as Map<String, dynamic>))
+        .toList() ?? [];
+    final med = json['medical'] as Map<String, dynamic>?;
+    return VictimProfile(
+      userId: user['id'] as String?,
+      name: user['name'] as String?,
+      phone: user['phone'] as String?,
+      language: user['language'] as String?,
+      contacts: contactList,
+      medical: med != null ? VictimMedical.fromJson(med) : null,
+    );
+  }
+}
+
+class VictimContact {
+  const VictimContact({this.name, this.phone, this.priority});
+  final String? name;
+  final String? phone;
+  final int? priority;
+
+  factory VictimContact.fromJson(Map<String, dynamic> json) => VictimContact(
+    name: json['name'] as String?,
+    phone: json['phone'] as String?,
+    priority: json['priority'] as int?,
+  );
+}
+
+class VictimMedical {
+  const VictimMedical({this.bloodGroup, this.allergies, this.conditions});
+  final String? bloodGroup;
+  final String? allergies;
+  final String? conditions;
+
+  factory VictimMedical.fromJson(Map<String, dynamic> json) => VictimMedical(
+    bloodGroup: json['bloodGroup'] as String?,
+    allergies: json['allergies'] as String?,
+    conditions: json['conditions'] as String?,
+  );
+}
+
 class AadhaarQrSubmitResult {
   const AadhaarQrSubmitResult({
     required this.success,
@@ -90,6 +151,42 @@ class BackendService {
     'Content-Type': 'application/json',
     if (authToken != null) 'Authorization': 'Bearer $authToken',
   };
+
+  // -------------------------------------------------------------------------
+  // SOS — Victim Profile Lookup
+  // -------------------------------------------------------------------------
+
+  /// Look up a victim's full profile (name, contacts, medical) by BLE UID.
+  ///
+  /// Returns `null` if no registered user owns this UID, or on any failure.
+  Future<VictimProfile?> lookupVictimProfile(String bleUidHex) async {
+    final url = Uri.parse('$_baseUrl$kApiSosVictimProfile/$bleUidHex');
+    debugPrint('[BackendService] → GET ${url.path}');
+    final sw = Stopwatch()..start();
+    try {
+      final response = await _client
+          .get(url, headers: _headers)
+          .timeout(const Duration(seconds: 15));
+      sw.stop();
+      _logResponse('BackendService', 'GET', url, response.statusCode, sw.elapsedMilliseconds);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        final profile = VictimProfile.fromJson(decoded);
+        debugPrint(
+          '[BackendService] Victim resolved: name=${profile.name} '
+          'contacts=${profile.contacts.length} '
+          'hasMedical=${profile.medical != null}',
+        );
+        return profile;
+      }
+      return null;
+    } catch (e) {
+      sw.stop();
+      _logException('BackendService', 'GET', url, e);
+      return null;
+    }
+  }
 
   // -------------------------------------------------------------------------
   // SOS Ingestion

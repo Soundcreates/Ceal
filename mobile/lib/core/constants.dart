@@ -98,6 +98,9 @@ const String kApiSosAck = '/sos/acknowledge';
 /// Endpoint: fetch currently active SOS events.
 const String kApiSosActive = '/sos/active';
 
+/// Endpoint: look up victim profile by BLE UID.
+const String kApiSosVictimProfile = '/sos/victim-profile';
+
 /// Endpoint: verify Aadhaar via scanned QR XML.
 const String kApiOnboardingVerifyAadhaarQr = '/onboarding/verify-aadhaar-qr';
 
