@@ -1,4 +1,4 @@
-/// AfterMath — Offline-first BLE emergency alert mesh network.
+/// CEAL — Civic Emergency Access Layer. Offline-first BLE emergency alert mesh network.
 library;
 
 import 'dart:async';
@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AfterMath',
+      title: 'CEAL',
       navigatorKey: navigatorKey,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

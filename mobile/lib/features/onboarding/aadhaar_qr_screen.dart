@@ -8,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
 import 'package:aftermath/core/env.dart';
 import 'package:aftermath/models/aadhaar_qr_data.dart';
 import 'package:aftermath/providers.dart';
@@ -192,23 +193,36 @@ class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(32, 20, 32, 24),
+          padding: const EdgeInsets.fromLTRB(28, 20, 28, 24),
           child: Column(
             children: [
-              Icon(Icons.qr_code_scanner, size: 72, color: AppTheme.sosColor),
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppTheme.nbAccent2.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+                  border: Border.all(
+                    color: AppTheme.nbInk,
+                    width: AppTheme.nbBorder,
+                  ),
+                  boxShadow: AppTheme.nbShadowSm,
+                ),
+                child: const Icon(Icons.qr_code_scanner, size: 36, color: AppTheme.nbInk),
+              ),
               const SizedBox(height: 24),
               Text(
                 'Scan Aadhaar QR',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: 12),
               Text(
                 'Scan your Aadhaar QR. We parse the XML and submit your '
                 'details to onboarding verification.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.nbInk.withValues(alpha: 0.6),
+                ),
               ),
               const SizedBox(height: 24),
               _buildScannerArea(),
@@ -236,26 +250,20 @@ class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
                 const SizedBox(height: 12),
                 Text(
                   _error!,
-                  style: const TextStyle(color: Colors.redAccent),
+                  style: const TextStyle(color: AppTheme.sosColor),
                   textAlign: TextAlign.center,
                 ),
               ],
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                height: 56,
-                child: FilledButton(
+                child: NBButton(
+                  label: 'Submit Aadhaar Data',
                   onPressed: _submitting || _parsed == null ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Submit Aadhaar Data'),
+                  icon: Icons.check,
+                  isLoading: _submitting,
+                  color: AppTheme.nbOk,
+                  expanded: true,
                 ),
               ),
               const SizedBox(height: 8),
@@ -280,23 +288,28 @@ class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
 
   Widget _buildScannerArea() {
     if (!_cameraGranted) {
-      return Container(
-        width: double.infinity,
-        height: 220,
-        decoration: BoxDecoration(
-          color: Colors.black12,
-          borderRadius: BorderRadius.circular(16),
+      return NBCard(
+        color: AppTheme.nbInk.withValues(alpha: 0.05),
+        shadow: false,
+        padding: const EdgeInsets.all(0),
+        child: SizedBox(
+          width: double.infinity,
+          height: 220,
+          child: const Center(child: Text('Camera permission not granted')),
         ),
-        alignment: Alignment.center,
-        child: const Text('Camera permission not granted'),
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: double.infinity,
-        height: 220,
+    return Container(
+      width: double.infinity,
+      height: 220,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+        border: Border.all(color: AppTheme.nbInk, width: AppTheme.nbBorder),
+        boxShadow: AppTheme.nbShadowSm,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.zero,
         child: MobileScanner(
           controller: _scannerController,
           onDetect: _handleDetect,
@@ -308,19 +321,16 @@ class _AadhaarQrScreenState extends ConsumerState<AadhaarQrScreen> {
   Widget _buildParsedCard(AadhaarQrData data) {
     String valueOrDash(String? v) => v == null || v.isEmpty ? '—' : v;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return NBCard(
+      color: AppTheme.nbAccent.withValues(alpha: 0.08),
+      borderColor: AppTheme.nbOk,
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Parsed Aadhaar Data',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
           ),
           const SizedBox(height: 8),
           Text('Name: ${valueOrDash(data.name)}'),

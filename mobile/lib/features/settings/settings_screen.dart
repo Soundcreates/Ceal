@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
 import 'package:aftermath/models/responder.dart';
 import 'package:aftermath/providers.dart';
 
@@ -63,82 +65,165 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // ------ BLE Section (always-on) ------
-          Text('Bluetooth',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          const ListTile(
-            leading: Icon(Icons.bluetooth_searching, color: Colors.blue),
-            title: Text('Background Scanning'),
-            subtitle: Text('Always on — listening for nearby SOS alerts 24/7.'),
-            trailing: Icon(Icons.check_circle, color: Colors.green),
+          const NBSectionHeader(
+            icon: Icons.bluetooth,
+            label: 'Bluetooth',
           ),
-          const Divider(height: 32),
-
-          // ------ SMS Fallback Section ------
-          Text('SMS Fallback',
-              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          SwitchListTile(
-            title: const Text('Enable SMS Fallback'),
-            subtitle: const Text(
-                'Send SMS to emergency contacts if BLE relay fails.'),
-            value: _smsFallbackEnabled,
-            onChanged: (val) async {
-              setState(() => _smsFallbackEnabled = val);
-              final settings = ref.read(settingsServiceProvider);
-              await settings.setSmsEnabled(val);
-              _syncContactsToSmsService();
-            },
-          ),
-          const Divider(height: 32),
-
-          // ------ Emergency Contacts Section ------
-          Text('Emergency Contacts',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          ..._contacts.map(
-            (c) => ListTile(
-              leading: const Icon(Icons.person),
-              title: Text(c.name),
-              subtitle: Text(c.phone),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () {
-                  setState(() => _contacts.remove(c));
-                  _persistContacts();
-                },
+          NBCard(
+            child: ListTile(
+              leading: const NBIconBox(
+                icon: Icons.bluetooth_searching,
+                color: AppTheme.nbAccent2,
+              ),
+              title: Text('Background Scanning', style: tt.titleSmall),
+              subtitle: Text(
+                'Always on — listening for nearby SOS alerts 24/7.',
+                style: tt.bodySmall,
+              ),
+              trailing: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppTheme.nbOk.withValues(alpha: .15),
+                  border: Border.all(
+                    color: AppTheme.nbInk,
+                    width: AppTheme.nbBorder,
+                  ),
+                  borderRadius: BorderRadius.zero,
+                ),
+                child: const Icon(Icons.check, size: 18, color: AppTheme.nbOk),
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _showAddContactDialog,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Contact'),
+          const SizedBox(height: 20),
+
+          // ------ SMS Fallback Section ------
+          const NBSectionHeader(
+            icon: Icons.sms_outlined,
+            label: 'SMS Fallback',
           ),
-          const Divider(height: 32),
+          const SizedBox(height: 8),
+          NBCard(
+            child: SwitchListTile(
+              title: Text('Enable SMS Fallback', style: tt.titleSmall),
+              subtitle: Text(
+                'Send SMS to emergency contacts if BLE relay fails.',
+                style: tt.bodySmall,
+              ),
+              value: _smsFallbackEnabled,
+              onChanged: (val) async {
+                setState(() => _smsFallbackEnabled = val);
+                final settings = ref.read(settingsServiceProvider);
+                await settings.setSmsEnabled(val);
+                _syncContactsToSmsService();
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // ------ Emergency Contacts Section ------
+          const NBSectionHeader(
+            icon: Icons.contacts_outlined,
+            label: 'Emergency Contacts',
+          ),
+          const SizedBox(height: 8),
+          if (_contacts.isNotEmpty)
+            NBCard(
+              child: Column(
+                children: _contacts.map((c) {
+                  final isLast = c == _contacts.last;
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading: const NBIconBox(
+                          icon: Icons.person,
+                          color: AppTheme.nbAccent,
+                          size: 36,
+                        ),
+                        title: Text(c.name, style: tt.titleSmall),
+                        subtitle: Text(c.phone, style: tt.bodySmall),
+                        trailing: GestureDetector(
+                          onTap: () {
+                            setState(() => _contacts.remove(c));
+                            _persistContacts();
+                          },
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppTheme.nbError.withValues(alpha: .1),
+                              border: Border.all(
+                                color: AppTheme.nbInk,
+                                width: AppTheme.nbBorder,
+                              ),
+                              borderRadius: BorderRadius.zero,
+                            ),
+                            child: const Icon(Icons.delete_outline,
+                                size: 18, color: AppTheme.nbError),
+                          ),
+                        ),
+                      ),
+                      if (!isLast)
+                        const Divider(height: 1, color: AppTheme.nbInk),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          const SizedBox(height: 12),
+          NBButton(
+            label: 'Add Contact',
+            icon: Icons.add,
+            color: AppTheme.nbAccent,
+            onPressed: _showAddContactDialog,
+          ),
+          const SizedBox(height: 20),
 
           // ------ About Section ------
-          Text('About', style: Theme.of(context).textTheme.titleMedium),
+          const NBSectionHeader(
+            icon: Icons.info_outline,
+            label: 'About',
+          ),
           const SizedBox(height: 8),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('AfterMath v1.0.0'),
-            subtitle: Text('Offline-first BLE emergency alert network.'),
+          NBCard(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const NBIconBox(
+                    icon: Icons.shield_outlined,
+                    color: AppTheme.nbAccent2,
+                  ),
+                  title: Text('AfterMath v1.0.0', style: tt.titleSmall),
+                  subtitle: Text(
+                    'Offline-first BLE emergency alert network.',
+                    style: tt.bodySmall,
+                  ),
+                ),
+                const Divider(height: 1, color: AppTheme.nbInk),
+                ListTile(
+                  leading: const NBIconBox(
+                    icon: Icons.privacy_tip_outlined,
+                    color: AppTheme.nbWarn,
+                  ),
+                  title: Text('Privacy Policy', style: tt.titleSmall),
+                  trailing: const Icon(Icons.chevron_right,
+                      color: AppTheme.nbInk),
+                  onTap: () {
+                    // TODO: open privacy policy URL
+                  },
+                ),
+              ],
+            ),
           ),
-          ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('Privacy Policy'),
-            onTap: () {
-              // TODO: open privacy policy URL
-            },
-          ),
+          const SizedBox(height: 32),
         ],
       ),
     );
@@ -151,7 +236,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add Emergency Contact'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+          side: const BorderSide(
+            color: AppTheme.nbInk,
+            width: AppTheme.nbBorder,
+          ),
+        ),
+        title: Row(
+          children: [
+            const NBIconBox(
+              icon: Icons.person_add,
+              color: AppTheme.nbAccent,
+              size: 36,
+            ),
+            const SizedBox(width: 12),
+            Text('Add Contact',
+                style: Theme.of(ctx).textTheme.titleMedium),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -178,7 +281,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
-          FilledButton(
+          NBButton(
+            label: 'Add',
+            icon: Icons.check,
+            color: AppTheme.nbAccent,
             onPressed: () {
               final name = _contactNameCtrl.text.trim();
               final phone = _contactPhoneCtrl.text.trim();
@@ -190,7 +296,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               }
               Navigator.of(ctx).pop();
             },
-            child: const Text('Add'),
           ),
         ],
       ),

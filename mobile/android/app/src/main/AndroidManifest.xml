@@ -28,7 +28,7 @@
     <application
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:label="AfterMath"
+        android:label="CEAL"
         android:usesCleartextTraffic="true">
 
         <activity

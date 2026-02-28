@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/nb_components.dart';
 import 'package:aftermath/core/permissions.dart';
 import 'package:aftermath/providers.dart';
 
@@ -28,52 +29,72 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
             children: [
               const Spacer(),
 
-              Icon(
-                Icons.security,
-                size: 72,
-                color: AppTheme.sosColor,
+              // NB icon box
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: AppTheme.nbAccent2.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+                  border: Border.all(
+                    color: AppTheme.nbInk,
+                    width: AppTheme.nbBorder,
+                  ),
+                  boxShadow: AppTheme.nbShadowSm,
+                ),
+                child: const Icon(Icons.security, size: 40, color: AppTheme.nbInk),
               ),
               const SizedBox(height: 24),
               Text(
                 'Permissions Required',
-                style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: 12),
               Text(
                 'AfterMath needs the following permissions to send and '
                 'receive emergency alerts.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: Colors.grey),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.nbInk.withValues(alpha: 0.6),
+                ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              // Permission items
-              _PermissionRow(
-                icon: Icons.bluetooth,
-                label: 'Bluetooth',
-                granted: _result?.bluetooth,
-              ),
-              _PermissionRow(
-                icon: Icons.location_on,
-                label: 'Location',
-                granted: _result?.location,
-              ),
-              _PermissionRow(
-                icon: Icons.notifications,
-                label: 'Notifications',
-                granted: _result?.notification,
-              ),
-              _PermissionRow(
-                icon: Icons.sms,
-                label: 'SMS (Android)',
-                granted: _result?.sms,
+              // Permission items in an NB card
+              NBCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  children: [
+                    _PermissionRow(
+                      icon: Icons.bluetooth,
+                      label: 'Bluetooth',
+                      granted: _result?.bluetooth,
+                    ),
+                    const Divider(height: 1, thickness: 1, color: Color(0x154A4A4A)),
+                    _PermissionRow(
+                      icon: Icons.location_on,
+                      label: 'Location',
+                      granted: _result?.location,
+                    ),
+                    const Divider(height: 1, thickness: 1, color: Color(0x154A4A4A)),
+                    _PermissionRow(
+                      icon: Icons.notifications,
+                      label: 'Notifications',
+                      granted: _result?.notification,
+                    ),
+                    const Divider(height: 1, thickness: 1, color: Color(0x154A4A4A)),
+                    _PermissionRow(
+                      icon: Icons.sms,
+                      label: 'SMS (Android)',
+                      granted: _result?.sms,
+                    ),
+                  ],
+                ),
               ),
 
               const Spacer(),
@@ -81,51 +102,48 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
               if (_result == null) ...[
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
+                  child: NBButton(
+                    label: 'Grant Permissions',
                     onPressed: _requesting ? null : _requestPermissions,
-                    child: _requesting
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Grant Permissions'),
+                    icon: Icons.shield,
+                    isLoading: _requesting,
+                    expanded: true,
                   ),
                 ),
               ] else if (_result!.allGranted) ...[
-                // All critical permissions granted — allow continue.
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
+                  child: NBButton(
+                    label: 'Continue',
                     onPressed: widget.onComplete,
-                    child: const Text('Continue'),
+                    icon: Icons.arrow_forward,
+                    color: AppTheme.nbOk,
+                    expanded: true,
                   ),
                 ),
               ] else ...[
-                // Blocking: critical permissions missing.
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                NBCard(
+                  color: AppTheme.nbError.withValues(alpha: 0.08),
+                  borderColor: AppTheme.nbError,
+                  shadow: false,
+                  padding: const EdgeInsets.all(12),
                   child: Text(
                     'Grant all permissions to join the safety network.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.sosColor,
-                      fontWeight: FontWeight.w600,
+                      color: AppTheme.nbError,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
+                  child: NBButton(
+                    label: 'Retry Permissions',
                     onPressed: _requestPermissions,
-                    child: const Text('Retry Permissions'),
+                    icon: Icons.refresh,
+                    expanded: true,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -169,20 +187,43 @@ class _PermissionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusIcon = granted == null
-        ? const Icon(Icons.circle_outlined, color: Colors.grey, size: 20)
+        ? Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.nbInk.withValues(alpha: 0.3), width: AppTheme.nbBorder),
+            ),
+          )
         : granted!
-            ? Icon(Icons.check_circle, color: AppTheme.safeColor, size: 20)
-            : const Icon(Icons.cancel, color: Colors.redAccent, size: 20);
+            ? Container(
+                width: 22,
+                height: 22,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.nbOk,
+                ),
+                child: const Icon(Icons.check, size: 14, color: Colors.white),
+              )
+            : Container(
+                width: 22,
+                height: 22,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.nbError,
+                ),
+                child: const Icon(Icons.close, size: 14, color: Colors.white),
+              );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Icon(icon, size: 28),
-          const SizedBox(width: 16),
+          NBIconBox(icon: icon, size: 36),
+          const SizedBox(width: 14),
           Expanded(
             child: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w500)),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
           ),
           statusIcon,
         ],
