@@ -27,12 +27,15 @@ vi.mock('pg', () => {
   };
 });
 
+// Expose mockCreate so escalation tests can assert on SMS call counts.
+// vi.hoisted ensures the value is available inside the vi.mock factory.
+const mockCreate = vi.hoisted(() => vi.fn().mockResolvedValue({ sid: 'SM_TEST' }));
+
 // Mock Twilio so it doesn't try to connect
 vi.mock('twilio', () => {
-  const create = vi.fn().mockResolvedValue({ sid: 'SM_TEST' });
   return {
     default: vi.fn(() => ({
-      messages: { create },
+      messages: { create: mockCreate },
     })),
   };
 });
@@ -131,7 +134,7 @@ describe('SOS routes', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // -------------------------------------------------------------------------
@@ -337,5 +340,40 @@ describe('Escalation timer', () => {
       .send({ id: validSos.id });
 
     expect(res.status).toBe(200);
+  });
+
+  it('immediately sends distress SMS to emergency contacts on ingest', async () => {
+    const app = buildApp();
+    mockQuery.mockReset();
+    mockCreate.mockClear();
+
+    const userRow = {
+      id: 'u-esc-1',
+      name: 'Victim Name',
+      phone: '+919999999998',
+      ble_uid: Buffer.from(validSos.bleUid, 'hex'),
+      language: 'en',
+      created_at: new Date(),
+    };
+    const contactRow1 = { id: 'c-1', user_id: 'u-esc-1', name: 'Mom', phone: '+911111111111', priority: 1 };
+    const contactRow2 = { id: 'c-2', user_id: 'u-esc-1', name: 'Dad', phone: '+912222222222', priority: 2 };
+    const dbRowWithUser = { ...dbRow, user_id: 'u-esc-1' };
+
+    mockQuery.mockResolvedValueOnce({ rows: [userRow] });                   // resolveUid
+    mockQuery.mockResolvedValueOnce({ rows: [dbRowWithUser] });             // upsert
+    mockQuery.mockResolvedValueOnce({ rows: [userRow] });                   // getUserById (profile enrichment)
+    mockQuery.mockResolvedValueOnce({ rows: [contactRow1, contactRow2] }); // getEmergencyContacts
+    mockQuery.mockResolvedValueOnce({ rows: [] });                          // getMedicalProfile
+
+    const res = await request(app).post('/v1/sos/ingest').send(validSos);
+    expect(res.status).toBe(201);
+
+    // Allow the fire-and-forget Promise.allSettled to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Both emergency contacts should have received an immediate SMS
+    const destinations = mockCreate.mock.calls.map((c: any[]) => c[0].to as string);
+    expect(destinations).toContain('+911111111111'); // Mom
+    expect(destinations).toContain('+912222222222'); // Dad
   });
 });

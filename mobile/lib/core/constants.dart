@@ -98,6 +98,9 @@ const String kApiSosAck = '/sos/acknowledge';
 /// Endpoint: fetch currently active SOS events.
 const String kApiSosActive = '/sos/active';
 
+/// Endpoint: verify Aadhaar via scanned QR XML.
+const String kApiOnboardingVerifyAadhaarQr = '/onboarding/verify-aadhaar-qr';
+
 // ---------------------------------------------------------------------------
 // Local Database
 // ---------------------------------------------------------------------------
