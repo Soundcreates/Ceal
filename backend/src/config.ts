@@ -60,14 +60,14 @@ function loadEnv(): Env {
       return true;
     });
     if (issues.length > 0) {
-      console.error('❌  Invalid environment variables:');
+      console.error('Invalid environment variables:');
       for (const issue of issues) {
         console.error(`   ${issue.path.join('.')}: ${issue.message}`);
       }
       process.exit(1);
     }
   }
-  return result.data;
+  return result.data!;
 }
 
 export const env = loadEnv();

@@ -8,6 +8,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:aftermath/services/pending_events_db.dart';
 
@@ -146,10 +147,36 @@ class SosNotificationService {
     debugPrint(
       '[SosNotificationService] Notification tapped: action=$actionId payload=$payload',
     );
-    // Action handling (call 112, open maps) is done via the platform's
-    // URL launcher when the notification actions are tapped. The actions
-    // themselves trigger the OS dialer / maps via their respective intents.
-    // For the PoC, the notification UI is informational.
+
+    if (actionId == 'call_112') {
+      launchUrl(Uri.parse('tel:112'), mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    if (actionId == 'open_maps' && payload != null && payload.isNotEmpty) {
+      final parts = payload.split(',');
+      if (parts.length == 2) {
+        final lat = parts[0].trim();
+        final lon = parts[1].trim();
+        // Try Google Maps app first, fall back to browser
+        launchUrl(
+          Uri.parse('https://maps.google.com/?q=$lat,$lon'),
+          mode: LaunchMode.externalApplication,
+        );
+      }
+      return;
+    }
+
+    // Tapping the notification body (no action) — also open maps if loc available
+    if (actionId == null && payload != null && payload.isNotEmpty) {
+      final parts = payload.split(',');
+      if (parts.length == 2) {
+        launchUrl(
+          Uri.parse('https://maps.google.com/?q=${parts[0].trim()},${parts[1].trim()}'),
+          mode: LaunchMode.externalApplication,
+        );
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------

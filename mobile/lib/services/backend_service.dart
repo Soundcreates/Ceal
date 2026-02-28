@@ -106,18 +106,13 @@ class BackendService {
     try {
       final response = await _client
           .post(url, headers: _headers, body: body)
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 35));
       sw.stop();
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        _logResponse('BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds);
-        return true;
-      }
       _logResponse(
         'BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds,
         bodyExcerpt: response.body,
       );
-      return false;
+      return response.statusCode >= 200 && response.statusCode < 300;
     } catch (e) {
       sw.stop();
       _logException('BackendService', 'POST', url, e);
@@ -157,7 +152,7 @@ class BackendService {
     try {
       final response = await _client
           .post(url, headers: _headers, body: body)
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 35));
       sw.stop();
       _logResponse('BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds,
           bodyExcerpt: response.statusCode >= 400 ? response.body : null);
@@ -214,7 +209,7 @@ class BackendService {
     try {
       final response = await _client
           .post(url, headers: _headers, body: body)
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 35));
       sw.stop();
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -261,7 +256,7 @@ class BackendService {
     try {
       final response = await _client
           .post(url, headers: _headers, body: jsonEncode({'id': sosId}))
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 35));
       sw.stop();
       _logResponse(
         'BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds,
@@ -287,7 +282,7 @@ class BackendService {
     try {
       final response = await _client
           .get(url, headers: _headers)
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 35));
       sw.stop();
 
       if (response.statusCode == 200) {
