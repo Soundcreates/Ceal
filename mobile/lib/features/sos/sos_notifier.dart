@@ -97,6 +97,7 @@ class SosNotifier extends StateNotifier<SosState> {
   void cancelSos() {
     _countdownTimer?.cancel();
     _ackTimer?.cancel();
+    _ref.read(bleAdvertiserProvider).stopContinuousBroadcast();
     _ref.read(bleAdvertiserProvider).stopAdvertising();
 
     state = const SosState(phase: SosPhase.cancelled);
@@ -111,6 +112,7 @@ class SosNotifier extends StateNotifier<SosState> {
   void reset() {
     _countdownTimer?.cancel();
     _ackTimer?.cancel();
+    _ref.read(bleAdvertiserProvider).stopContinuousBroadcast();
     state = const SosState();
   }
 
@@ -139,16 +141,20 @@ class SosNotifier extends StateNotifier<SosState> {
 
     state = state.copyWith(currentEvent: event);
 
-    try {
-      await _ref.read(bleAdvertiserProvider).broadcastCoreSos(corePacket);
-    } catch (e) {
-      debugPrint('[SosNotifier] BLE broadcast error: $e');
-      state = state.copyWith(
-        phase: SosPhase.error,
-        errorMessage: 'BLE broadcast failed: $e',
-      );
-    }
+    // --- Fire-and-forget BLE broadcast (runs independently for 60s) ---
+    _ref
+        .read(bleAdvertiserProvider)
+        .broadcastCoreSos(corePacket)
+        .then((_) {
+          debugPrint(
+            '[SosNotifier] Initial BLE burst cycle complete — continuous timer active',
+          );
+        })
+        .catchError((Object e) {
+          debugPrint('[SosNotifier] BLE broadcast error: $e');
+        });
 
+    // --- Get location (fast, ~1-2s) ---
     final pos = await _ref.read(locationServiceProvider).getCurrentPosition();
     if (pos != null) {
       event.receiverLocation = ReceiverLocation(
@@ -158,25 +164,23 @@ class SosNotifier extends StateNotifier<SosState> {
       );
     }
 
-    state = state.copyWith(phase: SosPhase.awaitingAck);
-
-    final uploaded = await _ref.read(backendServiceProvider).ingestSos(event);
-    if (uploaded) {
-      state = state.copyWith(phase: SosPhase.sent, backendConfirmed: true);
-      return;
-    }
-
-    // Backend unreachable — queue locally and go straight to SMS fallback
-    // rather than waiting kSmsFallbackTimeout (30s) since we already know
-    // the server is down.
+    // --- Always enqueue locally so ConnectivityWorker can retry ---
     await _ref.read(queueServiceProvider).enqueue(event);
-    await _triggerSmsFallback(event);
-  }
 
-  Future<void> _triggerSmsFallback(SosEvent event) async {
+    // --- ALWAYS send device SMS to emergency contacts immediately ---
     state = state.copyWith(phase: SosPhase.smsFallback);
-    await _ref.read(smsFallbackProvider).sendSos(event);
-    state = state.copyWith(phase: SosPhase.sent, smsSent: true);
+    final smsSent = await _ref.read(smsFallbackProvider).sendSos(event);
+    debugPrint('[SosNotifier] Device SMS sent to $smsSent contact(s)');
+
+    // --- Attempt backend ingest (triggers Twilio on server side too) ---
+    state = state.copyWith(phase: SosPhase.awaitingAck);
+    final uploaded = await _ref.read(backendServiceProvider).ingestSos(event);
+
+    state = state.copyWith(
+      phase: SosPhase.sent,
+      backendConfirmed: uploaded,
+      smsSent: smsSent > 0,
+    );
   }
 
   @override

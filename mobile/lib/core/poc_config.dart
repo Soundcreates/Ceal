@@ -17,11 +17,10 @@ final String kSmsDemoNumber =
 /// Escalation operator number — always receives a direct device SMS copy
 /// in addition to the backend Twilio message.
 /// Override via ESCALATION_PHONE in .env.
-final String kEscalationPhone =
-    dotenv.maybeGet('ESCALATION_PHONE') ?? '';
+final String kEscalationPhone = dotenv.maybeGet('ESCALATION_PHONE') ?? '';
 
 /// Interval between queue drain attempts when connectivity is available.
-const Duration kQueueDrainInterval = Duration(seconds: 15);
+const Duration kQueueDrainInterval = Duration(seconds: 5);
 
 /// BLE scan restart interval to avoid OS throttling.
 const Duration kBleScanRestartInterval = Duration(minutes: 20);
