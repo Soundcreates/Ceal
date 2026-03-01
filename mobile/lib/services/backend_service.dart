@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:aftermath/core/constants.dart';
 import 'package:aftermath/models/aadhaar_qr_data.dart';
+import 'package:aftermath/models/disaster_report.dart';
 import 'package:aftermath/models/sos_event.dart';
 
 // ---------------------------------------------------------------------------
@@ -134,6 +135,24 @@ class AadhaarQrSubmitResult {
   final int? statusCode;
   final String? error;
   final String? decodedXml;
+}
+
+class DisasterReportResult {
+  const DisasterReportResult({
+    required this.success,
+    this.statusCode,
+    this.error,
+    this.reportId,
+    this.verificationStatus,
+    this.imageUrl,
+  });
+
+  final bool success;
+  final int? statusCode;
+  final String? error;
+  final String? reportId;
+  final String? verificationStatus;
+  final String? imageUrl;
 }
 
 class BackendService {
@@ -590,6 +609,159 @@ class BackendService {
       _logException('BackendService', 'GET', url, e);
     }
     return [];
+  }
+
+  // -------------------------------------------------------------------------
+  // Disaster Reporting
+  // -------------------------------------------------------------------------
+
+  /// Submit a disaster report with an image (multipart upload).
+  Future<DisasterReportResult> submitDisasterReport({
+    required Uint8List imageBytes,
+    required String filename,
+    required double lat,
+    required double lon,
+    String? description,
+  }) async {
+    final uri = Uri.parse('$_baseUrl$kApiDisasterReport');
+    debugPrint('[BackendService] → POST ${uri.path} | lat=$lat lon=$lon');
+    final sw = Stopwatch()..start();
+
+    try {
+      final request = http.MultipartRequest('POST', uri);
+      if (authToken != null) {
+        request.headers['Authorization'] = 'Bearer $authToken';
+      }
+      request.fields['lat'] = lat.toString();
+      request.fields['lon'] = lon.toString();
+      if (description != null && description.trim().isNotEmpty) {
+        request.fields['description'] = description.trim();
+      }
+      request.files.add(http.MultipartFile.fromBytes(
+        'image',
+        imageBytes,
+        filename: filename,
+      ));
+
+      final streamed = await request.send().timeout(const Duration(seconds: 45));
+      final response = await http.Response.fromStream(streamed);
+      sw.stop();
+      _logResponse('BackendService', 'POST', uri, response.statusCode, sw.elapsedMilliseconds);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        final report = decoded['report'] as Map<String, dynamic>;
+        return DisasterReportResult(
+          success: true,
+          statusCode: response.statusCode,
+          reportId: report['id'] as String?,
+          verificationStatus: report['verificationStatus'] as String?,
+          imageUrl: report['imageUrl'] as String?,
+        );
+      }
+
+      String? msg;
+      try {
+        final d = jsonDecode(response.body);
+        if (d is Map<String, dynamic>) msg = d['error'] as String?;
+      } catch (_) {}
+      return DisasterReportResult(
+        success: false,
+        statusCode: response.statusCode,
+        error: msg ?? 'Report submission failed (${response.statusCode})',
+      );
+    } catch (e) {
+      sw.stop();
+      _logException('BackendService', 'POST', uri, e);
+      return DisasterReportResult(success: false, error: 'Network error: $e');
+    }
+  }
+
+  /// Fetch the paginated verified disaster feed.
+  Future<List<DisasterReport>> fetchDisasterFeed({
+    int page = 1,
+    int limit = 20,
+    String? category,
+  }) async {
+    final params = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+      if (category != null) 'category': category,
+    };
+    final uri = Uri.parse('$_baseUrl$kApiDisasterFeed').replace(queryParameters: params);
+    debugPrint('[BackendService] → GET ${uri.path}?${uri.query}');
+    final sw = Stopwatch()..start();
+    try {
+      final response = await _client
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 15));
+      sw.stop();
+      _logResponse('BackendService', 'GET', uri, response.statusCode, sw.elapsedMilliseconds);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final reports = (decoded['reports'] as List<dynamic>?)
+              ?.map((e) => DisasterReport.fromJson(e as Map<String, dynamic>))
+              .toList() ?? [];
+          return reports;
+        }
+      }
+    } catch (e) {
+      sw.stop();
+      _logException('BackendService', 'GET', uri, e);
+    }
+    return [];
+  }
+
+  /// Fetch a single disaster report by ID.
+  Future<DisasterReport?> fetchDisasterReport(String reportId) async {
+    final uri = Uri.parse('$_baseUrl$kApiDisasterDetail/$reportId');
+    debugPrint('[BackendService] → GET ${uri.path}');
+    final sw = Stopwatch()..start();
+    try {
+      final response = await _client
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 15));
+      sw.stop();
+      _logResponse('BackendService', 'GET', uri, response.statusCode, sw.elapsedMilliseconds);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        final report = decoded['report'] as Map<String, dynamic>;
+        return DisasterReport.fromJson(report);
+      }
+    } catch (e) {
+      sw.stop();
+      _logException('BackendService', 'GET', uri, e);
+    }
+    return null;
+  }
+
+  /// Fetch aggregated disaster stats.
+  Future<DisasterStats?> fetchDisasterStats({String range = '24h'}) async {
+    final uri = Uri.parse('$_baseUrl$kApiDisasterStats').replace(
+      queryParameters: {'range': range},
+    );
+    debugPrint('[BackendService] → GET ${uri.path}?${uri.query}');
+    final sw = Stopwatch()..start();
+    try {
+      final response = await _client
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 15));
+      sw.stop();
+      _logResponse('BackendService', 'GET', uri, response.statusCode, sw.elapsedMilliseconds);
+
+      if (response.statusCode == 200) {
+        return DisasterStats.fromJson(
+          jsonDecode(response.body) as Map<String, dynamic>,
+        );
+      }
+    } catch (e) {
+      sw.stop();
+      _logException('BackendService', 'GET', uri, e);
+    }
+    return null;
   }
 
   // -------------------------------------------------------------------------

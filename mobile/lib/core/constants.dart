@@ -108,6 +108,25 @@ const String kApiOnboardingVerifyAadhaarQr = '/onboarding/verify-aadhaar-qr';
 const String kApiOnboardingSignup = '/onboarding/signup';
 
 // ---------------------------------------------------------------------------
+// Disaster Reporting
+// ---------------------------------------------------------------------------
+
+/// Endpoint: submit a disaster report (multipart).
+const String kApiDisasterReport = '/disaster/report';
+
+/// Endpoint: paginated verified disaster feed.
+const String kApiDisasterFeed = '/disaster/feed';
+
+/// Endpoint: aggregated disaster statistics.
+const String kApiDisasterStats = '/disaster/stats';
+
+/// Endpoint: heatmap points.
+const String kApiDisasterHeatmap = '/disaster/heatmap';
+
+/// Single disaster report detail: /disaster/{id}
+const String kApiDisasterDetail = '/disaster';
+
+// ---------------------------------------------------------------------------
 // Local Database
 // ---------------------------------------------------------------------------
 

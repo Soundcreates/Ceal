@@ -19,6 +19,7 @@ import { createHealthRouter } from './routes/health.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createUsersRouter } from './routes/users.js';
 import { createOnboardingRouter } from './routes/onboarding.js';
+import { createDisasterRouter } from './routes/disaster.js';
 import { createAdminRouter } from './routes/admin.js';
 
 // ---------------------------------------------------------------------------
@@ -93,6 +94,7 @@ export function createApp(pool: Pool): express.Express {
   app.use('/v1/onboarding', createOnboardingRouter(pool));
   app.use('/v1/sos', createSosRouter(pool));
   app.use('/v1/users', createUsersRouter(pool));
+  app.use('/v1/disaster', createDisasterRouter(pool));
   app.use('/v1/admin', createAdminRouter(pool));
 
   // Root health check (convenience)
