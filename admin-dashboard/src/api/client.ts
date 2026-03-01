@@ -12,7 +12,7 @@ import type {
   UserDetail,
 } from './types';
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? '/v1';
+const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/v1';
 
 async function parseJsonBody<T>(res: Response): Promise<T> {
   const contentType = res.headers.get('content-type')?.toLowerCase() ?? '';

@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:aftermath/models/responder.dart';
 import 'package:aftermath/models/sos_event.dart';
@@ -76,18 +77,37 @@ class SmsFallbackService {
         'phone': phone,
         'message': message,
       });
-      return result ?? false;
+      if (result == true) {
+        return true;
+      }
+      debugPrint('[SmsFallbackService] Direct Android SMS returned false; opening composer fallback.');
+      return _openSmsComposer(phone, message);
     } on PlatformException catch (e) {
       debugPrint('[SmsFallbackService] Android SMS error: ${e.message}');
-      return false;
+      return _openSmsComposer(phone, message);
     }
   }
 
-  bool _sendSmsIos(String phone, String message) {
-    debugPrint(
-      '[SmsFallbackService] iOS requires user interaction for SMS. '
-      'Use url_launcher with sms:$phone?body=$message',
+  Future<bool> _sendSmsIos(String phone, String message) {
+    return _openSmsComposer(phone, message);
+  }
+
+  Future<bool> _openSmsComposer(String phone, String message) async {
+    final uri = Uri(
+      scheme: 'sms',
+      path: phone,
+      queryParameters: <String, String>{'body': message},
     );
-    return false;
+
+    if (!await canLaunchUrl(uri)) {
+      debugPrint('[SmsFallbackService] Cannot launch SMS composer for $phone');
+      return false;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched) {
+      debugPrint('[SmsFallbackService] Failed to launch SMS composer for $phone');
+    }
+    return launched;
   }
 }
