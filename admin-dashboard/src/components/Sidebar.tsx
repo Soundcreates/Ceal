@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom';
 
 const NAV = [
-  { to: '/admin/dashboard', icon: '◉', label: 'Dashboard' },
-  { to: '/admin/events',    icon: '!', label: 'SOS Events' },
-  { to: '/admin/users',     icon: '◈', label: 'Users' },
-  { to: '/admin/settings',  icon: '*', label: 'Settings' },
+  { to: '/admin/dashboard',         icon: '◉', label: 'Dashboard' },
+  { to: '/admin/events',            icon: '!', label: 'SOS Events' },
+  { to: '/admin/disaster-reports',  icon: '⚠', label: 'Disaster Reports' },
+  { to: '/admin/users',             icon: '◈', label: 'Users' },
+  { to: '/admin/settings',          icon: '*', label: 'Settings' },
 ];
 
 export default function Sidebar() {

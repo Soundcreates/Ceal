@@ -12,6 +12,8 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Events from './pages/Events';
 import EventDetail from './pages/EventDetail';
+import DisasterReports from './pages/DisasterReports';
+import DisasterReportDetail from './pages/DisasterReportDetail';
 import Users from './pages/Users';
 import UserDetail from './pages/UserDetail';
 import Settings from './pages/Settings';
@@ -29,6 +31,8 @@ const router = createBrowserRouter([
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'events', element: <Events /> },
       { path: 'events/:id', element: <EventDetail /> },
+      { path: 'disaster-reports', element: <DisasterReports /> },
+      { path: 'disaster-reports/:id', element: <DisasterReportDetail /> },
       { path: 'users', element: <Users /> },
       { path: 'users/:id', element: <UserDetail /> },
       { path: 'settings', element: <Settings /> },
