@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:aftermath/models/responder.dart';
@@ -72,19 +73,21 @@ class SmsFallbackService {
   }
 
   Future<bool> _sendSmsAndroid(String phone, String message) async {
+    final smsPermission = await Permission.sms.request();
+    if (!smsPermission.isGranted) {
+      debugPrint('[SmsFallbackService] Android SMS permission denied. Cannot auto-send.');
+      return false;
+    }
+
     try {
       final result = await _channel.invokeMethod<bool>('sendSms', {
         'phone': phone,
         'message': message,
       });
-      if (result == true) {
-        return true;
-      }
-      debugPrint('[SmsFallbackService] Direct Android SMS returned false; opening composer fallback.');
-      return _openSmsComposer(phone, message);
+      return result ?? false;
     } on PlatformException catch (e) {
       debugPrint('[SmsFallbackService] Android SMS error: ${e.message}');
-      return _openSmsComposer(phone, message);
+      return false;
     }
   }
 

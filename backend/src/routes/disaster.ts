@@ -50,6 +50,35 @@ const pickFirstString = (value: string | string[] | undefined): string | null =>
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+type PgLikeError = {
+  code?: string;
+  message?: string;
+  detail?: string;
+  stack?: string;
+};
+
+const getErrorInfo = (err: unknown): { code?: string; message: string; detail?: string; stack?: string } => {
+  if (err instanceof Error) {
+    const pgErr = err as PgLikeError;
+    return {
+      code: pgErr.code,
+      message: err.message || 'Unknown error',
+      detail: pgErr.detail,
+      stack: err.stack,
+    };
+  }
+
+  if (typeof err === 'string') {
+    return { message: err || 'Unknown string error' };
+  }
+
+  try {
+    return { message: JSON.stringify(err) };
+  } catch {
+    return { message: 'Unknown non-serializable error' };
+  }
+};
+
 export function createDisasterRouter(pool: Pool): Router {
   const router = Router();
   const repo = new DisasterReportRepository(pool);
@@ -191,7 +220,17 @@ export function createDisasterRouter(pool: Pool): Router {
           },
         });
       } catch (err) {
-        logger.error(`Disaster report submission failed: ${(err as Error).message}`, { reqId });
+        const info = getErrorInfo(err);
+        logger.error('Disaster report submission failed', { reqId, ...info });
+
+        // FK violation (typically user deleted by reset while token is still cached)
+        if (info.code === '23503') {
+          res.status(401).json({
+            error: 'Your account record is missing. Please sign up/login again.',
+          });
+          return;
+        }
+
         res.status(500).json({ error: 'Failed to process disaster report' });
       }
     },
@@ -232,7 +271,8 @@ export function createDisasterRouter(pool: Pool): Router {
         totalPages: Math.ceil(total / q.limit),
       });
     } catch (err) {
-      logger.error(`Feed query failed: ${(err as Error).message}`);
+      const info = getErrorInfo(err);
+      logger.error('Feed query failed', info);
       res.status(500).json({ error: 'Failed to fetch feed' });
     }
   });
@@ -250,7 +290,8 @@ export function createDisasterRouter(pool: Pool): Router {
       const stats = await repo.stats(parsed.data.range);
       res.json(stats);
     } catch (err) {
-      logger.error(`Stats query failed: ${(err as Error).message}`);
+      const info = getErrorInfo(err);
+      logger.error('Stats query failed', info);
       res.status(500).json({ error: 'Failed to fetch stats' });
     }
   });
@@ -272,7 +313,8 @@ export function createDisasterRouter(pool: Pool): Router {
       });
       res.json({ points });
     } catch (err) {
-      logger.error(`Heatmap query failed: ${(err as Error).message}`);
+      const info = getErrorInfo(err);
+      logger.error('Heatmap query failed', info);
       res.status(500).json({ error: 'Failed to fetch heatmap' });
     }
   });
@@ -294,7 +336,8 @@ export function createDisasterRouter(pool: Pool): Router {
       }
       res.json({ report });
     } catch (err) {
-      logger.error(`Report fetch failed: ${(err as Error).message}`);
+      const info = getErrorInfo(err);
+      logger.error('Report fetch failed', info);
       res.status(500).json({ error: 'Failed to fetch report' });
     }
   });
@@ -339,7 +382,8 @@ export function createDisasterRouter(pool: Pool): Router {
 
       res.json({ report });
     } catch (err) {
-      logger.error(`Status update failed: ${(err as Error).message}`, { reqId });
+      const info = getErrorInfo(err);
+      logger.error('Status update failed', { reqId, ...info });
       res.status(500).json({ error: 'Failed to update status' });
     }
   });

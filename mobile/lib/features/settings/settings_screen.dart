@@ -261,17 +261,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
 
-    if (confirm != true || !mounted) return;
+    if (confirm != true || !context.mounted) return;
 
     // Clear secure storage
     const storage = FlutterSecureStorage();
     await storage.delete(key: 'aftermath_auth_token');
     await storage.delete(key: 'aftermath_user_id');
+    await storage.write(key: 'aftermath_force_logged_out', value: '1');
 
     // Clear backend service token
     ref.read(backendServiceProvider).authToken = '';
 
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     // Navigate back to bootstrap screen
     Navigator.of(context).pushAndRemoveUntil(

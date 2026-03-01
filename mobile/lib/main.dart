@@ -99,14 +99,18 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
 
     // Load persisted auth token from secure storage (set during signup).
     const storage = FlutterSecureStorage();
+    final forcedLogout = await storage.read(key: 'aftermath_force_logged_out');
     final storedToken = await storage.read(key: 'aftermath_auth_token');
     if (storedToken != null && storedToken.isNotEmpty) {
       ref.read(backendServiceProvider).authToken = storedToken;
       _step = _OnboardingStep.home;
     }
 
-    // Dev override: .env API_AUTH_TOKEN always takes precedence when set.
-    if (Env.apiAuthToken.isNotEmpty) {
+    // Dev override: .env API_AUTH_TOKEN can auto-login only when the user
+    // has not explicitly logged out in this install.
+    if ((storedToken == null || storedToken.isEmpty) &&
+        forcedLogout != '1' &&
+        Env.apiAuthToken.isNotEmpty) {
       ref.read(backendServiceProvider).authToken = Env.apiAuthToken;
       _step = _OnboardingStep.home;
     }

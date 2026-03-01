@@ -91,14 +91,14 @@ class PermissionService {
   }
 
   // ---------------------------------------------------------------------------
-  // SMS
-  //
-  // Android 13+ and Play policy heavily restrict broad SMS permissions in many
-  // app categories. We avoid proactively requesting SMS runtime permission
-  // here; app-level fallback should use backend escalation and/or SMS composer.
+  // SMS (Android only – iOS has no SMS-send permission)
   // ---------------------------------------------------------------------------
 
   Future<bool> _requestSms() async {
+    if (Platform.isAndroid) {
+      final status = await Permission.sms.request();
+      return status.isGranted;
+    }
     return true;
   }
 
