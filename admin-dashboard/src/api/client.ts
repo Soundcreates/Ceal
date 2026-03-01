@@ -7,9 +7,13 @@ import type {
   EventDetail,
   PaginatedEvents,
   PaginatedUsers,
+  PaginatedDisasterReports,
+  DisasterReportDetail,
+  DisasterReport,
   SosEvent,
   SosStatus,
   UserDetail,
+  VerificationStatus,
 } from './types';
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? '/v1';
@@ -62,3 +66,29 @@ export const fetchUsers = (page = 1, limit = 50): Promise<PaginatedUsers> =>
 
 export const fetchUser = (id: string): Promise<UserDetail> =>
   request(`/admin/users/${encodeURIComponent(id)}`);
+
+/* ---------- Disaster Reports ---------- */
+
+export const fetchDisasterReports = (
+  page = 1,
+  limit = 50,
+  status?: VerificationStatus,
+  category?: string,
+): Promise<PaginatedDisasterReports> => {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  if (category) params.set('category', category);
+  return request(`/admin/disaster-reports?${params}`);
+};
+
+export const fetchDisasterReport = (id: string): Promise<DisasterReportDetail> =>
+  request(`/admin/disaster-reports/${encodeURIComponent(id)}`);
+
+export const updateDisasterReportStatus = (
+  id: string,
+  authority_status: string,
+): Promise<DisasterReport> =>
+  request(`/admin/disaster-reports/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ authority_status }),
+  });

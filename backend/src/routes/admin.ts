@@ -13,7 +13,9 @@ import { Router, type Request, type Response } from 'express';
 import type { Pool } from 'pg';
 import { SosRepository } from '../db/sos-repository.js';
 import { UserRepository } from '../db/user-repository.js';
+import { DisasterReportRepository } from '../db/disaster-report-repository.js';
 import { extractSosType, SOS_STATUSES } from '../models/sos-event.js';
+import { AUTHORITY_STATUSES, VERIFICATION_STATUSES } from '../models/disaster-report.js';
 import { logger } from '../logger.js';
 
 const rid = (req: Request): string =>
@@ -23,6 +25,7 @@ export function createAdminRouter(pool: Pool): Router {
   const router = Router();
   const sosRepo = new SosRepository(pool);
   const userRepo = new UserRepository(pool);
+  const disasterRepo = new DisasterReportRepository(pool);
 
   // -----------------------------------------------------------------------
   // GET /admin/stats
@@ -76,6 +79,28 @@ export function createAdminRouter(pool: Pool): Router {
         `SELECT * FROM sos_events ORDER BY created_at DESC LIMIT 10`,
       );
 
+      // Disaster report stats
+      const [disasterTotal, disasterToday, disasterVerification] = await Promise.all([
+        pool.query('SELECT COUNT(*)::int AS count FROM disaster_reports'),
+        pool.query(
+          `SELECT COUNT(*)::int AS count FROM disaster_reports WHERE created_at >= CURRENT_DATE`,
+        ),
+        pool.query(
+          `SELECT
+             COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE verification_status = 'verified')::int AS verified,
+             COUNT(*) FILTER (WHERE verification_status = 'pending')::int AS pending,
+             COUNT(*) FILTER (WHERE verification_status = 'rejected')::int AS rejected,
+             COUNT(*) FILTER (WHERE verification_status = 'flagged')::int AS flagged
+           FROM disaster_reports`,
+        ),
+      ]);
+
+      // Recent disaster reports (last 5)
+      const recentDisasterReports = await pool.query(
+        `SELECT * FROM disaster_reports ORDER BY created_at DESC LIMIT 5`,
+      );
+
       res.json({
         totalEvents: eventsRow.rows[0].count,
         totalUsers: usersRow.rows[0].count,
@@ -91,6 +116,14 @@ export function createAdminRouter(pool: Pool): Router {
           ...sosRepo['rowToEvent'](r),
           sosType: extractSosType(r.flags ?? 0),
         })),
+        disasterReports: {
+          total: disasterTotal.rows[0].count,
+          today: disasterToday.rows[0].count,
+          verification: disasterVerification.rows[0],
+        },
+        recentDisasterReports: recentDisasterReports.rows.map((r) =>
+          disasterRepo['rowToReport'](r),
+        ),
       });
     } catch (err) {
       logger.error('Admin stats error', { message: (err as Error).message });
@@ -299,6 +332,128 @@ export function createAdminRouter(pool: Pool): Router {
       });
     } catch (err) {
       logger.error('Admin user detail error', { message: (err as Error).message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // GET /admin/disaster-reports
+  // -----------------------------------------------------------------------
+  router.get('/disaster-reports', async (req: Request, res: Response) => {
+    const reqId = rid(req);
+    try {
+      const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '50'), 10) || 50));
+      const offset = (page - 1) * limit;
+      const status = req.query.status ? String(req.query.status) : null;
+      const category = req.query.category ? String(req.query.category) : null;
+
+      const conditions: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+
+      if (status && (VERIFICATION_STATUSES as readonly string[]).includes(status)) {
+        conditions.push(`verification_status = $${i++}`);
+        params.push(status);
+      }
+      if (category) {
+        conditions.push(`category = $${i++}`);
+        params.push(category);
+      }
+
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+      const countQ = await pool.query(
+        `SELECT COUNT(*)::int AS total FROM disaster_reports ${where}`,
+        params,
+      );
+      const total = countQ.rows[0].total;
+
+      const dataQ = await pool.query(
+        `SELECT dr.*, u.name AS reporter_name
+         FROM disaster_reports dr
+         LEFT JOIN users u ON u.id = dr.user_id
+         ${where}
+         ORDER BY dr.created_at DESC
+         LIMIT $${i++} OFFSET $${i++}`,
+        [...params, limit, offset],
+      );
+
+      const reports = dataQ.rows.map((r) => ({
+        ...disasterRepo['rowToReport'](r),
+        reporterName: r.reporter_name ?? null,
+      }));
+
+      res.json({ reports, total, page, limit, pages: Math.ceil(total / limit) });
+    } catch (err) {
+      logger.error('Admin disaster reports list error', { reqId, message: (err as Error).message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // GET /admin/disaster-reports/:id
+  // -----------------------------------------------------------------------
+  router.get('/disaster-reports/:id', async (req: Request, res: Response) => {
+    const reqId = rid(req);
+    try {
+      const report = await disasterRepo.findById(String(req.params.id));
+      if (!report) {
+        res.status(404).json({ error: 'Disaster report not found' });
+        return;
+      }
+
+      // Get reporter info
+      const userQ = await pool.query(
+        'SELECT id, name, phone, role, kyc_status FROM users WHERE id = $1',
+        [report.userId],
+      );
+      const reporter = userQ.rows[0]
+        ? {
+            id: userQ.rows[0].id,
+            name: userQ.rows[0].name,
+            phone: userQ.rows[0].phone,
+            role: userQ.rows[0].role,
+            kycStatus: userQ.rows[0].kyc_status,
+          }
+        : null;
+
+      res.json({ ...report, reporter });
+    } catch (err) {
+      logger.error('Admin disaster report detail error', { reqId, message: (err as Error).message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // PATCH /admin/disaster-reports/:id/status
+  // -----------------------------------------------------------------------
+  router.patch('/disaster-reports/:id/status', async (req: Request, res: Response) => {
+    const reqId = rid(req);
+    try {
+      const { authority_status } = req.body;
+      if (!authority_status || !(AUTHORITY_STATUSES as readonly string[]).includes(authority_status)) {
+        res.status(400).json({
+          error: `Invalid authority_status. Must be one of: ${AUTHORITY_STATUSES.join(', ')}`,
+        });
+        return;
+      }
+      const report = await disasterRepo.updateAuthorityStatus(
+        String(req.params.id),
+        authority_status,
+      );
+      if (!report) {
+        res.status(404).json({ error: 'Disaster report not found' });
+        return;
+      }
+      logger.info('Admin updated disaster report status', {
+        reqId,
+        id: report.id,
+        authorityStatus: authority_status,
+      });
+      res.json(report);
+    } catch (err) {
+      logger.error('Admin disaster status update error', { reqId, message: (err as Error).message });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
