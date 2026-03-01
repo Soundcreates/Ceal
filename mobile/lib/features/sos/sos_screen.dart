@@ -26,6 +26,11 @@ class SosScreen extends ConsumerWidget {
         title: const Text('CEAL: Civic Emergency Access Layer'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.warning_amber_rounded),
+            tooltip: 'Disaster Reports',
+            onPressed: () => Navigator.of(context).pushNamed('/disasters'),
+          ),
+          IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Alert History',
             onPressed: () => Navigator.of(context).pushNamed('/alerts'),

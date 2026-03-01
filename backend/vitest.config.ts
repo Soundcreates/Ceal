@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    env: { LOG_LEVEL: 'error' },
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

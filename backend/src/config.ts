@@ -46,6 +46,17 @@ const envSchema = z.object({
   // (for development/staging). Defaults to 'false' (production keys).
   USE_TEST_AADHAAR: z.enum(['true', 'false']).default('false'),
 
+  // Gemini (disaster image verification)
+  GEMINI_API_KEY: z.string().min(1).optional(),
+
+  // Cloudinary (disaster image hosting)
+  CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
+  CLOUDINARY_API_KEY: z.string().min(1).optional(),
+  CLOUDINARY_API_SECRET: z.string().min(1).optional(),
+
+  // Disaster reporting
+  DISASTER_REPORT_RATE_LIMIT: z.coerce.number().int().positive().default(5),
+  DISASTER_IMAGE_MAX_BYTES: z.coerce.number().int().positive().default(5_242_880), // 5 MB
 });
 
 export type Env = z.infer<typeof envSchema>;
