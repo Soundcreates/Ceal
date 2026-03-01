@@ -1,6 +1,6 @@
 import { fetchStats } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
-import type { DashboardStats, SosEvent } from '../api/types';
+import type { DashboardStats, SosEvent, DisasterReport } from '../api/types';
 import { Link } from 'react-router-dom';
 
 function StatusBadge({ status }: { status: string }) {
@@ -56,6 +56,34 @@ function RecentRow({ ev }: { ev: SosEvent }) {
   );
 }
 
+function RecentDisasterRow({ r }: { r: DisasterReport }) {
+  return (
+    <tr>
+      <td>
+        <Link to={`/admin/disaster-reports/${r.id}`} className="mono" style={{ fontWeight: 700 }}>
+          {r.id.slice(0, 12)}…
+        </Link>
+      </td>
+      <td><span className={`nb-badge nb-badge--cat-${r.category}`}>{r.category}</span></td>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 50, height: 8, background: '#e5e7eb', border: '2px solid var(--nb-ink)' }}>
+            <div style={{
+              width: `${(r.severityScore / 5) * 100}%`,
+              height: '100%',
+              background: r.severityScore >= 4 ? 'var(--nb-error)' : r.severityScore >= 3 ? 'var(--nb-warn)' : 'var(--nb-ok)',
+            }} />
+          </div>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 700 }}>{r.severityScore}/5</span>
+        </div>
+      </td>
+      <td><StatusBadge status={r.verificationStatus} /></td>
+      <td><span className={`nb-badge nb-badge--authority-${r.authorityStatus}`}>{r.authorityStatus}</span></td>
+      <td className="mono">{formatTime(r.createdAt)}</td>
+    </tr>
+  );
+}
+
 export default function Dashboard() {
   const { data: stats, loading, error } = usePolling<DashboardStats>(
     () => fetchStats(),
@@ -106,9 +134,35 @@ export default function Dashboard() {
       </div>
 
       {/* ---------------------------------------------------------------- */}
+      {/* Disaster report stat cards                                       */}
+      {/* ---------------------------------------------------------------- */}
+      {stats.disasterReports && (
+        <div className="stat-grid" style={{ marginBottom: 28 }}>
+          <div className="nb-card nb-card--sm stat-card" style={{ borderColor: 'var(--nb-warn)' }}>
+            <div className="stat-card__label">⚠ Disaster Reports</div>
+            <div className="stat-card__value">{stats.disasterReports.total}</div>
+          </div>
+          <div className="nb-card nb-card--sm stat-card">
+            <div className="stat-card__label">⚠ Reports Today</div>
+            <div className="stat-card__value stat-card__value--warn">{stats.disasterReports.today}</div>
+          </div>
+          <div className="nb-card nb-card--sm stat-card">
+            <div className="stat-card__label">✓ Verified</div>
+            <div className="stat-card__value stat-card__value--ok">{stats.disasterReports.verification.verified}</div>
+          </div>
+          <div className="nb-card nb-card--sm stat-card">
+            <div className="stat-card__label">⚑ Flagged / Pending</div>
+            <div className="stat-card__value stat-card__value--error">
+              {stats.disasterReports.verification.flagged + stats.disasterReports.verification.pending}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------------- */}
       {/* Second row: KYC + Status breakdown + SOS type                    */}
       {/* ---------------------------------------------------------------- */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 20, marginBottom: 28 }}>
         {/* KYC Overview */}
         <div className="nb-card nb-card--sm">
           <div className="stat-card__label" style={{ marginBottom: 14 }}>KYC Status</div>
@@ -159,6 +213,31 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* Disaster Verification Breakdown */}
+        {stats.disasterReports && (
+          <div className="nb-card nb-card--sm" style={{ borderColor: 'var(--nb-warn)' }}>
+            <div className="stat-card__label" style={{ marginBottom: 14 }}>⚠ Disaster Verification</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <StatusBadge status="verified" />
+                <strong>{stats.disasterReports.verification.verified}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <StatusBadge status="pending" />
+                <strong>{stats.disasterReports.verification.pending}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <StatusBadge status="rejected" />
+                <strong>{stats.disasterReports.verification.rejected}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="nb-badge nb-badge--flagged">flagged</span>
+                <strong>{stats.disasterReports.verification.flagged}</strong>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ---------------------------------------------------------------- */}
@@ -197,6 +276,34 @@ export default function Dashboard() {
           </tbody>
         </table>
       </div>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* Recent disaster reports                                          */}
+      {/* ---------------------------------------------------------------- */}
+      {stats.recentDisasterReports && stats.recentDisasterReports.length > 0 && (
+        <>
+          <h3 className="section-heading">Recent Disaster Reports</h3>
+          <div className="nb-table-wrap">
+            <table className="nb-table">
+              <thead>
+                <tr>
+                  <th>Report ID</th>
+                  <th>Category</th>
+                  <th>Severity</th>
+                  <th>Verification</th>
+                  <th>Authority</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.recentDisasterReports.map((r) => (
+                  <RecentDisasterRow key={r.id} r={r} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </>
   );
 }

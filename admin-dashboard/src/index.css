@@ -140,6 +140,24 @@ a:hover { text-decoration: underline; }
 .nb-badge--responder { background: var(--nb-accent2); color: #fff; }
 .nb-badge--admin     { background: var(--nb-ink); color: var(--nb-bg); }
 
+/* -- Disaster verification -- */
+.nb-badge--flagged   { background: #F97316; color: #fff; }
+
+/* -- Disaster categories -- */
+.nb-badge--cat-fire           { background: #DC2626; color: #fff; }
+.nb-badge--cat-flood          { background: #2563EB; color: #fff; }
+.nb-badge--cat-earthquake     { background: #92400E; color: #fff; }
+.nb-badge--cat-accident       { background: #EA580C; color: #fff; }
+.nb-badge--cat-infrastructure { background: #6B7280; color: #fff; }
+.nb-badge--cat-medical        { background: #059669; color: #fff; }
+.nb-badge--cat-other          { background: var(--nb-accent2); color: #fff; }
+
+/* -- Authority status -- */
+.nb-badge--authority-pending    { background: var(--nb-warn); color: #fff; }
+.nb-badge--authority-dispatched { background: var(--nb-accent); color: #fff; }
+.nb-badge--authority-resolved   { background: var(--nb-ok); color: #fff; }
+.nb-badge--authority-ignored    { background: #9CA3AF; color: #fff; }
+
 /* ================================================================== */
 /*  NB Table                                                           */
 /* ================================================================== */
