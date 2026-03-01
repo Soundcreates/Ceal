@@ -27,8 +27,9 @@ void _logResponse(
   String? bodyExcerpt,
 }) {
   final ok = statusCode >= 200 && statusCode < 300;
-  final excerpt =
-      bodyExcerpt != null && bodyExcerpt.isNotEmpty ? ' body=${bodyExcerpt.substring(0, bodyExcerpt.length.clamp(0, 200))}' : '';
+  final excerpt = bodyExcerpt != null && bodyExcerpt.isNotEmpty
+      ? ' body=${bodyExcerpt.substring(0, bodyExcerpt.length.clamp(0, 200))}'
+      : '';
   debugPrint(
     '[$tag] ${ok ? '✓' : '✗'} $method ${url.path} → $statusCode (${elapsedMs}ms)$excerpt',
   );
@@ -52,6 +53,7 @@ class SignupResult {
   final bool success;
   final String? userId;
   final String? token;
+
   /// Server-confirmed 12-hex BLE UID the device should broadcast.
   final String? bleUid;
   final int? statusCode;
@@ -78,9 +80,11 @@ class VictimProfile {
 
   factory VictimProfile.fromJson(Map<String, dynamic> json) {
     final user = json['user'] as Map<String, dynamic>? ?? {};
-    final contactList = (json['contacts'] as List<dynamic>?)
-        ?.map((c) => VictimContact.fromJson(c as Map<String, dynamic>))
-        .toList() ?? [];
+    final contactList =
+        (json['contacts'] as List<dynamic>?)
+            ?.map((c) => VictimContact.fromJson(c as Map<String, dynamic>))
+            .toList() ??
+        [];
     final med = json['medical'] as Map<String, dynamic>?;
     return VictimProfile(
       userId: user['id'] as String?,
@@ -187,7 +191,13 @@ class BackendService {
           .get(url, headers: _headers)
           .timeout(const Duration(seconds: 15));
       sw.stop();
-      _logResponse('BackendService', 'GET', url, response.statusCode, sw.elapsedMilliseconds);
+      _logResponse(
+        'BackendService',
+        'GET',
+        url,
+        response.statusCode,
+        sw.elapsedMilliseconds,
+      );
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
@@ -226,17 +236,23 @@ class BackendService {
     try {
       final response = await _client
           .post(url, headers: _headers, body: body)
-          .timeout(const Duration(seconds: 35));
+          .timeout(const Duration(seconds: 8));
       sw.stop();
       _logResponse(
-        'BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds,
+        'BackendService',
+        'POST',
+        url,
+        response.statusCode,
+        sw.elapsedMilliseconds,
         bodyExcerpt: response.body,
       );
       return response.statusCode >= 200 && response.statusCode < 300;
     } catch (e) {
       sw.stop();
       _logException('BackendService', 'POST', url, e);
-      debugPrint('[BackendService] ingestSos elapsed before error: ${sw.elapsedMilliseconds}ms');
+      debugPrint(
+        '[BackendService] ingestSos elapsed before error: ${sw.elapsedMilliseconds}ms',
+      );
       return false;
     }
   }
@@ -267,15 +283,23 @@ class BackendService {
         'medicalProfile': medicalProfile,
     };
     final body = jsonEncode(payload);
-    debugPrint('[BackendService] → POST ${url.path} | phone=$phone bleUid=$bleUid');
+    debugPrint(
+      '[BackendService] → POST ${url.path} | phone=$phone bleUid=$bleUid',
+    );
     final sw = Stopwatch()..start();
     try {
       final response = await _client
           .post(url, headers: _headers, body: body)
           .timeout(const Duration(seconds: 35));
       sw.stop();
-      _logResponse('BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds,
-          bodyExcerpt: response.statusCode >= 400 ? response.body : null);
+      _logResponse(
+        'BackendService',
+        'POST',
+        url,
+        response.statusCode,
+        sw.elapsedMilliseconds,
+        bodyExcerpt: response.statusCode >= 400 ? response.body : null,
+      );
 
       if (response.statusCode == 201) {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
@@ -333,7 +357,13 @@ class BackendService {
       sw.stop();
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        _logResponse('BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds);
+        _logResponse(
+          'BackendService',
+          'POST',
+          url,
+          response.statusCode,
+          sw.elapsedMilliseconds,
+        );
         return AadhaarQrSubmitResult(
           success: true,
           statusCode: response.statusCode,
@@ -341,7 +371,11 @@ class BackendService {
       }
 
       _logResponse(
-        'BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds,
+        'BackendService',
+        'POST',
+        url,
+        response.statusCode,
+        sw.elapsedMilliseconds,
         bodyExcerpt: response.body,
       );
       String? msg;
@@ -512,7 +546,11 @@ class BackendService {
           .timeout(const Duration(seconds: 35));
       sw.stop();
       _logResponse(
-        'BackendService', 'POST', url, response.statusCode, sw.elapsedMilliseconds,
+        'BackendService',
+        'POST',
+        url,
+        response.statusCode,
+        sw.elapsedMilliseconds,
         bodyExcerpt: response.statusCode >= 400 ? response.body : null,
       );
       return response.statusCode >= 200 && response.statusCode < 300;
@@ -545,13 +583,25 @@ class BackendService {
               .whereType<Map<String, dynamic>>()
               .map((e) => SosEvent.fromJson(e))
               .toList();
-          _logResponse('BackendService', 'GET', url, response.statusCode, sw.elapsedMilliseconds);
-          debugPrint('[BackendService] fetchActiveEvents: ${events.length} event(s) received');
+          _logResponse(
+            'BackendService',
+            'GET',
+            url,
+            response.statusCode,
+            sw.elapsedMilliseconds,
+          );
+          debugPrint(
+            '[BackendService] fetchActiveEvents: ${events.length} event(s) received',
+          );
           return events;
         }
       }
       _logResponse(
-        'BackendService', 'GET', url, response.statusCode, sw.elapsedMilliseconds,
+        'BackendService',
+        'GET',
+        url,
+        response.statusCode,
+        sw.elapsedMilliseconds,
         bodyExcerpt: response.body,
       );
     } catch (e) {

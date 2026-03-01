@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Server entry point.
+ * CEAL Backend — Server entry point.
  *
  * Starts Express, connects to PostgreSQL, and listens for requests.
  */
@@ -13,7 +13,7 @@ import { cancelAllTimers } from './services/escalation.js';
 const app = createApp(pool);
 
 const server = app.listen(env.PORT, () => {
-  logger.info(`AfterMath backend listening on port ${env.PORT} [${env.NODE_ENV}]`);
+  logger.info(`CEAL backend listening on port ${env.PORT} [${env.NODE_ENV}]`);
 
   // Warm up the Neon connection pool immediately so the first real request
   // (signup, SOS ingest, etc.) does not incur a 10 s cold-start delay.

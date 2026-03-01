@@ -38,6 +38,14 @@ class MeshRelayService {
       return;
     }
 
+    // TTL guard — if hops already at max, don't relay further.
+    if (event.relayHops >= kDefaultTtl) {
+      debugPrint(
+        '[MeshRelayService] TTL EXPIRED — ${event.id} hops=${event.relayHops} | dropping',
+      );
+      return;
+    }
+
     _relayedIds.add(event.id);
     _pendingTimers.add(Timer(kDeduplicationWindow, () => _relayedIds.remove(event.id)));
 
@@ -57,7 +65,10 @@ class MeshRelayService {
     final jitter = Duration(milliseconds: 100 + _rng.nextInt(400));
     _pendingTimers.add(Timer(jitter, () => _rebroadcast(event)));
 
-    debugPrint('[MeshRelayService] Relayed event ${event.id} from $sourceDeviceId');
+    debugPrint(
+      '[MeshRelayService] Relayed event ${event.id} from $sourceDeviceId '
+      'hops=${event.relayHops}',
+    );
   }
 
   Future<void> _uploadToBackend(SosEvent event) async {
@@ -72,12 +83,20 @@ class MeshRelayService {
   }
 
   Future<void> _rebroadcast(SosEvent event) async {
-    event.relayHops++;
+    final newHops = event.relayHops + 1;
+    final newTtl = kDefaultTtl - newHops;
+    if (newTtl <= 0) {
+      debugPrint(
+        '[MeshRelayService] Not rebroadcasting — TTL would be $newTtl | ${event.id}',
+      );
+      return;
+    }
     try {
       final corePacket = CoreSosPacket(
         flags: event.flags,
         bleUid: Uint8List.fromList(event.bleUid),
         sequence: event.sequence,
+        ttl: newTtl,
       );
       await advertiser.broadcastCoreSos(corePacket);
     } catch (e) {

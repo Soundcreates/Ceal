@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Database migration.
+ * CEAL Backend — Database migration.
  *
  * Run with: npm run migrate
  * Idempotent — safe to run multiple times.

@@ -136,9 +136,18 @@ class BackgroundRelayService {
     }
     _addToDedup(dedupKey);
 
+    // TTL guard — drop packets that have exhausted their hop budget.
+    if (packet.ttl <= 0) {
+      debugPrint(
+        '[BackgroundRelay] TTL EXPIRED — uid=${packet.bleUidHex} seq=${packet.sequence} '
+        'ttl=${packet.ttl} | dropping',
+      );
+      return;
+    }
+
     debugPrint(
       '[BackgroundRelay] *** NEW SOS DETECTED *** | uid=${packet.bleUidHex} '
-      'seq=${packet.sequence} rssi=$rssi '
+      'seq=${packet.sequence} rssi=$rssi ttl=${packet.ttl} hops=${packet.relayHops} '
       'flags=0x${packet.flags.toRadixString(16).padLeft(2, '0')} '
       'deviceId=$deviceId | cacheSize=${_dedupCache.length}',
     );
@@ -163,6 +172,7 @@ class BackgroundRelayService {
 
     // 2. Build pending event.
     final eventId = 'uid:$bleUid:${packet.sequence}';
+    final hops = packet.relayHops;
     final pe = PendingEvent(
       id: eventId,
       uid: bleUid,
@@ -172,6 +182,7 @@ class BackgroundRelayService {
       receiverLon: lon,
       rssi: rssi,
       timestamp: DateTime.now().toUtc().millisecondsSinceEpoch,
+      relayHops: hops,
     );
 
     // 3. Persist to local queue.
@@ -188,6 +199,7 @@ class BackgroundRelayService {
       flags: packet.flags,
       sequence: packet.sequence,
       timestamp: DateTime.now().toUtc(),
+      relayHops: hops,
       receiverLocation:
           pos != null ? ReceiverLocation(lat: lat, lon: lon, accuracy: pos.accuracy) : null,
       rssi: rssi,
@@ -252,7 +264,7 @@ class BackgroundRelayService {
     // 10. Drain any other pending events in the queue.
     unawaited(connectivityWorker.drainQueue());
 
-    // 11. Re-broadcast via BLE mesh.
+    // 11. Re-broadcast via BLE mesh (with decremented TTL).
     _rebroadcast(packet);
    } catch (e, st) {
     debugPrint(
@@ -389,11 +401,27 @@ class BackgroundRelayService {
   // ---------------------------------------------------------------------------
 
   void _rebroadcast(CoreSosPacket packet) {
+    final newTtl = packet.ttl - 1;
+    if (newTtl <= 0) {
+      debugPrint(
+        '[BackgroundRelay] Not rebroadcasting — TTL would be $newTtl | '
+        'uid=${packet.bleUidHex} seq=${packet.sequence}',
+      );
+      return;
+    }
     debugPrint(
-      '[BackgroundRelay] Rebroadcasting via BLE | uid=${packet.bleUidHex} seq=${packet.sequence}',
+      '[BackgroundRelay] Rebroadcasting via BLE | uid=${packet.bleUidHex} '
+      'seq=${packet.sequence} ttl=$newTtl',
     );
     try {
-      advertiser.broadcastCoreSos(packet);
+      final relayPacket = CoreSosPacket(
+        version: packet.version,
+        flags: packet.flags,
+        bleUid: Uint8List.fromList(packet.bleUid),
+        sequence: packet.sequence,
+        ttl: newTtl,
+      );
+      advertiser.broadcastCoreSos(relayPacket);
     } catch (e) {
       debugPrint('[BackgroundRelay] Rebroadcast error: $e');
     }

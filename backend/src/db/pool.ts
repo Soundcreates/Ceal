@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — PostgreSQL connection pool.
+ * CEAL Backend — PostgreSQL connection pool.
  */
 
 import pg from 'pg';

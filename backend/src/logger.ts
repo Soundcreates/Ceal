@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Winston logger.
+ * CEAL Backend — Winston logger.
  *
  * Outputs human-readable coloured lines to the console.
  * Each line includes: timestamp · level · request-id (if present) · message.

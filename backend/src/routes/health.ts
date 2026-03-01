@@ -1,5 +1,5 @@
 /**
- * AfterMath Backend — Health check route.
+ * CEAL Backend — Health check route.
  */
 
 import { Router, type Request, type Response } from 'express';
