@@ -19,6 +19,7 @@ import { createHealthRouter } from './routes/health.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createUsersRouter } from './routes/users.js';
 import { createOnboardingRouter } from './routes/onboarding.js';
+import { createDisasterRouter } from './routes/disaster.js';
 
 // ---------------------------------------------------------------------------
 // Sensitive fields to redact from logged request bodies
@@ -92,6 +93,7 @@ export function createApp(pool: Pool): express.Express {
   app.use('/v1/onboarding', createOnboardingRouter(pool));
   app.use('/v1/sos', createSosRouter(pool));
   app.use('/v1/users', createUsersRouter(pool));
+  app.use('/v1/disaster', createDisasterRouter(pool));
 
   // Root health check (convenience)
   app.get('/', (_req, res) => {

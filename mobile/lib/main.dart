@@ -10,9 +10,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:aftermath/core/app_theme.dart';
+import 'package:aftermath/core/env.dart';
 import 'package:aftermath/features/alerts/alert_list_screen.dart';
 import 'package:aftermath/features/alerts/alerts_notifier.dart';
 import 'package:aftermath/features/alerts/victim_detail_popup.dart';
+import 'package:aftermath/features/disaster/disaster_feed_screen.dart';
 import 'package:aftermath/features/onboarding/aadhaar_qr_screen.dart';
 import 'package:aftermath/features/onboarding/manual_kyc_form_screen.dart';
 import 'package:aftermath/features/onboarding/permission_screen.dart';
@@ -47,6 +49,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/alerts': (_) => const AlertListScreen(),
         '/settings': (_) => const SettingsScreen(),
+        '/disasters': (_) => const DisasterFeedScreen(),
       },
       home: const AppBootstrapScreen(),
     );
@@ -98,6 +101,12 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
     final storedToken = await storage.read(key: 'aftermath_auth_token');
     if (storedToken != null && storedToken.isNotEmpty) {
       ref.read(backendServiceProvider).authToken = storedToken;
+      _step = _OnboardingStep.home;
+    }
+
+    // Dev override: .env API_AUTH_TOKEN always takes precedence when set.
+    if (Env.apiAuthToken.isNotEmpty) {
+      ref.read(backendServiceProvider).authToken = Env.apiAuthToken;
       _step = _OnboardingStep.home;
     }
 
