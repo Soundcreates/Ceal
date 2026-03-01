@@ -16,7 +16,31 @@ import type {
   VerificationStatus,
 } from './types';
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? '/v1';
+const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/v1';
+
+async function parseJsonBody<T>(res: Response): Promise<T> {
+  const contentType = res.headers.get('content-type')?.toLowerCase() ?? '';
+  if (contentType.includes('application/json')) {
+    return res.json() as Promise<T>;
+  }
+
+  const text = await res.text();
+  const trimmed = text.trim();
+
+  if (trimmed.length === 0) {
+    throw new Error('Empty response from server');
+  }
+
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    const looksLikeHtml = trimmed.startsWith('<!doctype') || trimmed.startsWith('<html') || trimmed.startsWith('<');
+    if (looksLikeHtml) {
+      throw new Error('Backend returned HTML instead of JSON. Check API base URL / rewrites.');
+    }
+    throw new Error('Backend returned invalid JSON response.');
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -24,10 +48,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `Request failed: ${res.status}`);
+    const body = await parseJsonBody<unknown>(res).catch(() => null);
+    const errorMessage =
+      body &&
+      typeof body === 'object' &&
+      'error' in body &&
+      typeof body.error === 'string'
+        ? body.error
+        : `Request failed: ${res.status}`;
+    throw new Error(errorMessage);
   }
-  return res.json();
+  return parseJsonBody<T>(res);
 }
 
 /* ---------- Dashboard ---------- */

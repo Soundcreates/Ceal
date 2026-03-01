@@ -1,0 +1,15 @@
+{
+    "buildCommand": "npm run build",
+    "outputDirectory": "dist",
+    "framework": "vite",
+    "rewrites": [
+        {
+            "source": "/v1/(.*)",
+            "destination": "https://aftermath-omshantyom-civic.onrender.com/v1/$1"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ]
+}

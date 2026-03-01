@@ -87,7 +87,7 @@ const double kGpsScale = 10000000.0;
 
 /// Base URL for the AfterMath backend API.
 /// Override with environment variable or remote config in production.
-const String kApiBaseUrl = 'https://api.aftermath.local/v1';
+const String kApiBaseUrl = 'https://aftermath-omshantyom-civic.onrender.com/v1';
 
 /// Endpoint: ingest an SOS event.
 const String kApiSosIngest = '/sos/ingest';

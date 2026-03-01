@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "migrate": "tsx src/db/migrate.ts",
+    "db:reset": "tsx src/db/reset.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/"

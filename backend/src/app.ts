@@ -46,7 +46,7 @@ export function createApp(pool: Pool): express.Express {
   app.use(helmet());
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+      origin: "*",
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     }),

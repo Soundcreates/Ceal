@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/v1';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/v1';
 
 export default function Settings() {
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -11,6 +11,13 @@ export default function Settings() {
     setTestResult(null);
     try {
       const res = await fetch(`${API_BASE}/health`);
+      const contentType = res.headers.get('content-type')?.toLowerCase() ?? '';
+      if (!res.ok) {
+        throw new Error(`Request failed: ${res.status}`);
+      }
+      if (!contentType.includes('application/json')) {
+        throw new Error('Backend returned non-JSON response');
+      }
       const data = await res.json();
       setTestResult(`✓ Connected — DB: ${data.database ?? 'ok'}, Uptime: ${data.uptime ?? '?'}s`);
     } catch (err) {

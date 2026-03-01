@@ -28,6 +28,7 @@ import {
   authorityStatusUpdateSchema,
   heatmapQuerySchema,
   statsQuerySchema,
+  type DisasterCategory,
 } from '../models/disaster-report.js';
 import { env } from '../config.js';
 import { logger } from '../logger.js';
@@ -40,6 +41,12 @@ const upload = multer({
 
 const rid = (req: Request): string =>
   (req as Request & { reqId?: string }).reqId ?? 'no-rid';
+
+const pickFirstString = (value: string | string[] | undefined): string | null => {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return null;
+};
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -121,7 +128,7 @@ export function createDisasterRouter(pool: Pool): Router {
 
         let verificationStatus: 'verified' | 'rejected' | 'flagged' | 'pending';
         let rejectionReason: string | null = null;
-        let category = 'other' as const;
+        let category: DisasterCategory = 'other';
         let severityScore = 3;
         let llmConfidence = 0;
 
@@ -275,11 +282,12 @@ export function createDisasterRouter(pool: Pool): Router {
   // -----------------------------------------------------------------------
   router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     try {
-      if (!UUID_RE.test(req.params.id)) {
+      const id = pickFirstString(req.params.id);
+      if (!id || !UUID_RE.test(id)) {
         res.status(404).json({ error: 'Report not found' });
         return;
       }
-      const report = await repo.findById(req.params.id);
+      const report = await repo.findById(id);
       if (!report) {
         res.status(404).json({ error: 'Report not found' });
         return;
@@ -297,7 +305,8 @@ export function createDisasterRouter(pool: Pool): Router {
   router.patch('/:id/status', requireAuth, async (req: Request, res: Response) => {
     const reqId = rid(req);
     try {
-      if (!UUID_RE.test(req.params.id)) {
+      const id = pickFirstString(req.params.id);
+      if (!id || !UUID_RE.test(id)) {
         res.status(404).json({ error: 'Report not found' });
         return;
       }
@@ -317,14 +326,14 @@ export function createDisasterRouter(pool: Pool): Router {
         return;
       }
 
-      const report = await repo.updateAuthorityStatus(req.params.id, parsed.data.authority_status);
+      const report = await repo.updateAuthorityStatus(id, parsed.data.authority_status);
       if (!report) {
         res.status(404).json({ error: 'Report not found' });
         return;
       }
 
       logger.info(
-        `Report ${req.params.id} authority_status → ${parsed.data.authority_status} by ${req.user!.sub}`,
+        `Report ${id} authority_status → ${parsed.data.authority_status} by ${req.user!.sub}`,
         { reqId },
       );
 
