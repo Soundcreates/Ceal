@@ -7,10 +7,12 @@ library;
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:aftermath/models/responder.dart';
+import 'package:aftermath/models/sos_type.dart';
 
 class SettingsService {
   Database? _db;
@@ -106,6 +108,57 @@ class SettingsService {
   Future<bool> isSmsEnabled() async {
     final raw = await _get(_smsEnabledKey);
     return raw == '1';
+  }
+
+  // -------------------------------------------------------------------------
+  // Accessibility Button SOS Type
+  // -------------------------------------------------------------------------
+
+  static const _accessibilitySosTypeKey = 'accessibility_sos_type';
+
+  /// MethodChannel to Android native SharedPreferences.
+  static const _accessibilityChannel =
+      MethodChannel('com.aftermath.sos/accessibility');
+
+  /// Set the SOS type that fires when the Android Accessibility Button is
+  /// pressed.  Persists both in SQLite (Dart state) and in Android
+  /// SharedPreferences (so the native AccessibilityService can read it
+  /// even when Flutter is not running).
+  Future<void> setAccessibilitySosType(SosType type) async {
+    final eventStr = 'sos_${type.name}'; // e.g. "sos_fire"
+    await _set(_accessibilitySosTypeKey, eventStr);
+    // Push to native Android SharedPreferences.
+    try {
+      await _accessibilityChannel.invokeMethod(
+        'setAccessibilitySosType',
+        {'sosType': eventStr},
+      );
+    } catch (e) {
+      debugPrint(
+        '[SettingsService] Failed to sync accessibility SOS type to native: $e',
+      );
+    }
+    debugPrint('[SettingsService] Accessibility SOS type set to: $eventStr');
+  }
+
+  /// Load the currently configured accessibility-button SOS type.
+  Future<SosType> getAccessibilitySosType() async {
+    // Prefer the native value (source of truth for the AccessibilityService).
+    try {
+      final native = await _accessibilityChannel
+          .invokeMethod<String>('getAccessibilitySosType');
+      if (native != null && native.isNotEmpty) {
+        return SosType.fromEventString(native);
+      }
+    } catch (e) {
+      debugPrint(
+        '[SettingsService] Failed to read native accessibility SOS type: $e',
+      );
+    }
+    // Fallback: read from local SQLite.
+    final raw = await _get(_accessibilitySosTypeKey);
+    if (raw != null) return SosType.fromEventString(raw);
+    return SosType.general;
   }
 
   // -------------------------------------------------------------------------

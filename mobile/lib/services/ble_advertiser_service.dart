@@ -18,6 +18,11 @@ class BleAdvertiserService {
   /// Timer for continuous re-advertising during an active SOS session.
   Timer? _continuousTimer;
 
+  /// Callback invoked when the full broadcast session (initial burst + continuous
+  /// re-advertising) has completed. Used by the SOS notifier to trigger
+  /// device SMS to emergency contacts only after BLE advertising stops.
+  VoidCallback? onBroadcastComplete;
+
   /// How long to keep re-advertising (total session duration).
   static const _sosBroadcastDuration = Duration(seconds: 60);
 
@@ -58,6 +63,9 @@ class BleAdvertiserService {
         debugPrint(
           '[BleAdvertiserService] Continuous broadcast session ended.',
         );
+        // Notify listeners (SOS notifier) that BLE advertising has stopped
+        // so device SMS can be dispatched to emergency contacts.
+        onBroadcastComplete?.call();
         return;
       }
       debugPrint('[BleAdvertiserService] Re-advertising burst round…');
@@ -71,15 +79,37 @@ class BleAdvertiserService {
   }
 
   /// Run one full burst cycle (kAdvertiseBurstCount rounds).
+  ///
+  /// If [_maxConsecutiveFailures] bursts fail in a row, the cycle aborts
+  /// early to avoid spamming the BLE controller.
+  static const _maxConsecutiveFailures = 3;
+
   Future<void> _runBurstCycle(Uint8List raw, String uidHex, int seq) async {
+    int consecutiveFailures = 0;
+
     for (int burst = 0; burst < kAdvertiseBurstCount; burst++) {
       debugPrint(
         '[BleAdvertiserService] Burst ${burst + 1}/$kAdvertiseBurstCount — start',
       );
       await stopAdvertising(); // ensure previous slot is released
-      await _advertiseRawBytes(raw);
-      // Hold for kBurstInterval so the receiver can pick up the packet.
-      await Future<void>.delayed(kBurstInterval);
+      final ok = await _advertiseRawBytes(raw);
+      if (ok) {
+        consecutiveFailures = 0;
+        // Hold for kBurstInterval so the receiver can pick up the packet.
+        await Future<void>.delayed(kBurstInterval);
+      } else {
+        consecutiveFailures++;
+        if (consecutiveFailures >= _maxConsecutiveFailures) {
+          debugPrint(
+            '[BleAdvertiserService] Aborting burst cycle after '
+            '$_maxConsecutiveFailures consecutive failures — '
+            'BLE adapter may be saturated',
+          );
+          break;
+        }
+        // Longer cooldown before retrying after a failure.
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
       await stopAdvertising();
       debugPrint(
         '[BleAdvertiserService] Burst ${burst + 1}/$kAdvertiseBurstCount — stopped',
@@ -113,10 +143,12 @@ class BleAdvertiserService {
     }
     _isAdvertising = false;
     // Give the BLE controller time to fully release the advertising set.
-    await Future<void>.delayed(const Duration(milliseconds: 80));
+    // 300ms is needed on many Android devices — 80ms is not enough and
+    // causes TOO_MANY_ADVERTISERS on the next start().
+    await Future<void>.delayed(const Duration(milliseconds: 300));
   }
 
-  Future<void> _advertiseRawBytes(Uint8List raw) async {
+  Future<bool> _advertiseRawBytes(Uint8List raw) async {
     final advertiseData = AdvertiseData(
       serviceUuid: kSosServiceUuid,
       manufacturerId: kManufacturerId,
@@ -143,6 +175,7 @@ class BleAdvertiserService {
       );
       _isAdvertising = true;
       debugPrint('[BleAdvertiserService] Advertising started OK');
+      return true;
     } catch (e, st) {
       debugPrint('[BleAdvertiserService] Advertise error: $e\n$st');
 
@@ -150,7 +183,8 @@ class BleAdvertiserService {
       if (e.toString().contains('TOO_MANY_ADVERTISERS')) {
         debugPrint('[BleAdvertiserService] Retrying after forced stop…');
         await stopAdvertising();
-        await Future<void>.delayed(const Duration(milliseconds: 200));
+        // Longer cooldown so the Android BLE stack can release the set.
+        await Future<void>.delayed(const Duration(milliseconds: 500));
         try {
           await _peripheral.start(
             advertiseData: advertiseData,
@@ -158,10 +192,12 @@ class BleAdvertiserService {
           );
           _isAdvertising = true;
           debugPrint('[BleAdvertiserService] Retry succeeded');
+          return true;
         } catch (e2) {
           debugPrint('[BleAdvertiserService] Retry also failed: $e2');
         }
       }
+      return false;
     }
   }
 

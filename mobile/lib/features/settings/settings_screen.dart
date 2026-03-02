@@ -10,6 +10,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:aftermath/main.dart';
 import 'package:aftermath/models/responder.dart';
+import 'package:aftermath/models/sos_type.dart';
 import 'package:aftermath/providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -21,6 +22,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _smsFallbackEnabled = true;
+  SosType _accessibilitySosType = SosType.general;
 
   final _contactNameCtrl = TextEditingController();
   final _contactPhoneCtrl = TextEditingController();
@@ -36,12 +38,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final settings = ref.read(settingsServiceProvider);
     final contacts = await settings.loadContacts();
     final smsEnabled = await settings.isSmsEnabled();
+    final accSosType = await settings.getAccessibilitySosType();
     if (mounted) {
       setState(() {
         _contacts
           ..clear()
           ..addAll(contacts);
         _smsFallbackEnabled = smsEnabled;
+        _accessibilitySosType = accSosType;
       });
       _syncContactsToSmsService();
     }
@@ -101,6 +105,70 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 child: const Icon(Icons.check, size: 18, color: AppTheme.nbOk),
               ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // ------ Accessibility Button Section ------
+          const NBSectionHeader(
+            icon: Icons.accessibility_new,
+            label: 'Accessibility Button',
+          ),
+          const SizedBox(height: 8),
+          NBCard(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const NBIconBox(
+                    icon: Icons.touch_app,
+                    color: AppTheme.nbAccent,
+                  ),
+                  title: Text('SOS Type on Button Press', style: tt.titleSmall),
+                  subtitle: Text(
+                    'The Android Accessibility Button will fire this SOS type when pressed.',
+                    style: tt.bodySmall,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16)
+                      .copyWith(bottom: 12),
+                  child: DropdownButtonFormField<SosType>(
+                    value: _accessibilitySosType,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.nbRadius),
+                        borderSide: const BorderSide(
+                          color: AppTheme.nbInk,
+                          width: AppTheme.nbBorder,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    items: SosType.values.map((type) {
+                      return DropdownMenuItem<SosType>(
+                        value: type,
+                        child: Row(
+                          children: [
+                            Icon(type.icon, color: type.color, size: 20),
+                            const SizedBox(width: 10),
+                            Text(type.label),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (type) async {
+                      if (type == null) return;
+                      setState(() => _accessibilitySosType = type);
+                      await ref
+                          .read(settingsServiceProvider)
+                          .setAccessibilitySosType(type);
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),

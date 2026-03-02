@@ -3,6 +3,7 @@ package com.aftermath.sos
 import android.content.Intent
 import android.os.Build
 import android.telephony.SmsManager
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -63,6 +64,38 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        // --- Accessibility button SOS type MethodChannel ---
+        // Lets Flutter read/write which SOS type the Accessibility Button triggers.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ACCESSIBILITY_CHANNEL_NAME)
+            .setMethodCallHandler { call, result ->
+                val prefs = applicationContext.getSharedPreferences(
+                    VolumeTriggerService.PREFS_NAME,
+                    MODE_PRIVATE,
+                )
+                when (call.method) {
+                    "setAccessibilitySosType" -> {
+                        val sosType = call.argument<String>("sosType")
+                        if (sosType == null) {
+                            result.error("INVALID_ARGS", "sosType is required", null)
+                            return@setMethodCallHandler
+                        }
+                        prefs.edit()
+                            .putString(VolumeTriggerService.PREF_ACCESSIBILITY_SOS_TYPE, sosType)
+                            .apply()
+                        Log.d(TAG, "Accessibility SOS type set to: $sosType")
+                        result.success(true)
+                    }
+                    "getAccessibilitySosType" -> {
+                        val sosType = prefs.getString(
+                            VolumeTriggerService.PREF_ACCESSIBILITY_SOS_TYPE,
+                            VolumeTriggerService.DEFAULT_ACCESSIBILITY_SOS,
+                        )
+                        result.success(sosType)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         // Check if the initial launch Intent carries an SOS type.
         handleSosIntent(intent)
     }
@@ -83,6 +116,7 @@ class MainActivity : FlutterActivity() {
      */
     private fun handleSosIntent(intent: Intent?) {
         val sosType = intent?.getStringExtra(VolumeTriggerService.EXTRA_SOS_TYPE) ?: return
+        Log.d(TAG, "handleSosIntent: sosType=$sosType, eventSink=${if (eventSink != null) "ready" else "null"}")
         // Clear the extra so it doesn't re-fire on config changes.
         intent.removeExtra(VolumeTriggerService.EXTRA_SOS_TYPE)
 
@@ -95,7 +129,9 @@ class MainActivity : FlutterActivity() {
     }
 
     companion object {
+        private const val TAG = "MainActivity"
         private const val EVENT_CHANNEL_NAME = "volume_trigger/events"
         private const val SMS_CHANNEL_NAME = "com.aftermath.sos/sms"
+        private const val ACCESSIBILITY_CHANNEL_NAME = "com.aftermath.sos/accessibility"
     }
 }

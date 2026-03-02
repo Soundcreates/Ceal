@@ -121,13 +121,32 @@ export async function verifyDisasterImage(
     const text = response.text().trim();
 
     // Strip markdown code fences if present
-    const jsonStr = text
+    let jsonStr = text
       .replace(/^```json\s*/i, '')
       .replace(/^```\s*/i, '')
       .replace(/\s*```$/i, '')
       .trim();
 
-    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+    // Gemini 2.5 Flash sometimes returns slightly invalid JSON.
+    // Sanitise common issues before parsing:
+    // 1) Remove single-line // comments
+    jsonStr = jsonStr.replace(/\/\/.*$/gm, '');
+    // 2) Remove multi-line /* */ comments
+    jsonStr = jsonStr.replace(/\/\*[\s\S]*?\*\//g, '');
+    // 3) Replace single-quoted keys/values with double quotes (simple cases)
+    jsonStr = jsonStr.replace(/(?<=[\{,]\s*)'([^']+)'(?=\s*:)/g, '"$1"');
+    // 4) Remove trailing commas before } or ]
+    jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+    } catch (firstErr) {
+      // Last resort: try to extract the first JSON object from the text
+      const match = jsonStr.match(/\{[\s\S]*\}/);
+      if (!match) throw firstErr;
+      parsed = JSON.parse(match[0]) as Record<string, unknown>;
+    }
 
     // Validate and clamp the response
     const category = VALID_CATEGORIES.includes(parsed.category as DisasterCategory)

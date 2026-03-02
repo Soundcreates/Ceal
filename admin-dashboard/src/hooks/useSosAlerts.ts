@@ -6,6 +6,13 @@ const POLL_INTERVAL = 5_000; // 5s
 const SEEN_KEY = 'ceal_seen_sos_ids';
 
 /**
+ * How recent (in ms) an event must be to trigger a popup on the very first
+ * poll.  Events older than this are silently marked as seen so they don't
+ * blast the user when the dashboard first loads.
+ */
+const FIRST_LOAD_RECENCY_MS = 120_000; // 2 minutes
+
+/**
  * Polls for new active/relayed SOS events. When a previously-unseen
  * event is detected, fetches its full detail (including victim profile)
  * and pushes it into the alert queue.
@@ -55,10 +62,38 @@ export function useSosAlerts() {
         const allEvents = [...active.events, ...relayed.events];
 
         if (!initialLoadDone.current) {
-          // First load: mark everything as seen (don't blast old alerts)
-          allEvents.forEach((e) => seenRef.current.add(e.id));
+          // First load: only suppress old events. Recent ones (< 2 min)
+          // still get shown so the operator doesn't miss an active SOS.
+          const now = Date.now();
+          const recentUnseen: typeof allEvents = [];
+
+          for (const e of allEvents) {
+            const age = now - new Date(e.timestamp).getTime();
+            if (age > FIRST_LOAD_RECENCY_MS || seenRef.current.has(e.id)) {
+              seenRef.current.add(e.id);
+            } else {
+              recentUnseen.push(e);
+            }
+          }
+
           initialLoadDone.current = true;
           persistSeen();
+
+          // Fall through so recent events get fetched & shown below
+          if (recentUnseen.length === 0) return;
+
+          // Mark recent ones as seen so subsequent polls don't duplicate
+          recentUnseen.forEach((e) => seenRef.current.add(e.id));
+          persistSeen();
+
+          const details = await Promise.all(
+            recentUnseen.map((e) => fetchEvent(e.id).catch(() => null)),
+          );
+          if (!mounted) return;
+          const validDetails = details.filter(Boolean) as EventDetail[];
+          if (validDetails.length > 0) {
+            setAlerts((prev) => [...validDetails, ...prev]);
+          }
           return;
         }
 
@@ -81,8 +116,8 @@ export function useSosAlerts() {
         if (validDetails.length > 0) {
           setAlerts((prev) => [...validDetails, ...prev]);
         }
-      } catch {
-        // Swallow network errors silently — next poll will retry
+      } catch (err) {
+        console.error('[useSosAlerts] Poll failed:', err);
       }
     };
 

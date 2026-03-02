@@ -51,21 +51,32 @@ export async function storeImage(
     return `https://placeholder.local/aftermath/${userId}/${reportId}`;
   }
 
-  const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: `aftermath/${userId}`,
-        public_id: reportId,
-        resource_type: 'image',
-        overwrite: false,
-      },
-      (err, uploadResult) => {
-        if (err) return reject(err);
-        resolve(uploadResult as { secure_url: string });
-      },
-    );
-    stream.end(buffer);
-  });
+  const uploadOnce = () =>
+    new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: `aftermath/${userId}`,
+          public_id: reportId,
+          resource_type: 'image',
+          overwrite: false,
+          timeout: 30_000, // 30 s upload timeout
+        },
+        (err, uploadResult) => {
+          if (err) return reject(err);
+          resolve(uploadResult as { secure_url: string });
+        },
+      );
+      stream.end(buffer);
+    });
+
+  // Retry once on transient / timeout errors
+  let result: { secure_url: string };
+  try {
+    result = await uploadOnce();
+  } catch (firstErr: any) {
+    logger.warn(`Cloudinary upload failed, retrying once… (${firstErr?.message})`);
+    result = await uploadOnce();
+  }
 
   logger.info(
     `Image uploaded to Cloudinary: ${result.secure_url} (${buffer.length} bytes)`,

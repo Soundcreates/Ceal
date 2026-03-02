@@ -161,6 +161,7 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
     _volumeSubscription = _volumeEventChannel.receiveBroadcastStream().listen((
       dynamic event,
     ) {
+      debugPrint('[VolumeEvent] Received event: $event');
       if (!mounted || event is! String) return;
 
       final sosType = SosType.fromEventString(event);
@@ -170,9 +171,19 @@ class _AppBootstrapScreenState extends ConsumerState<AppBootstrapScreen> {
         setState(() => _step = _OnboardingStep.home);
       }
 
+      // Reset any stale SOS state (e.g. stuck in "sent") so the gesture
+      // always starts a fresh countdown.
+      final notifier = ref.read(sosNotifierProvider.notifier);
+      final currentPhase = ref.read(sosNotifierProvider).phase;
+      if (currentPhase != SosPhase.idle && currentPhase != SosPhase.error) {
+        debugPrint('[VolumeEvent] Resetting stale SOS phase: $currentPhase');
+        notifier.reset();
+      }
+
       // Fire SOS with the detected type (starts the cancellable countdown).
       HapticFeedback.heavyImpact();
-      ref.read(sosNotifierProvider.notifier).triggerSos(type: sosType);
+      debugPrint('[VolumeEvent] Triggering SOS: $sosType');
+      notifier.triggerSos(type: sosType);
     });
   }
 

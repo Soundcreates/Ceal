@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CEAL</string>
+    <string name="accessibility_service_description">CEAL emergency SOS triggers. When enabled, volume-button combos fire specific SOS types. The Accessibility Button (floating nav-bar icon) fires the SOS type you configure in Settings.</string>
+</resources>

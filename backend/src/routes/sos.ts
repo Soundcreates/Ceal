@@ -12,7 +12,6 @@ import { sosIngestSchema, sosAckSchema, extractSosType } from '../models/sos-eve
 import { SosRepository } from '../db/sos-repository.js';
 import { UserRepository } from '../db/user-repository.js';
 import { startEscalationTimer, cancelEscalationTimer } from '../services/escalation.js';
-import { sendContactSms, sendEscalationSms } from '../services/twilio.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { logger } from '../logger.js';
 import type { Pool } from 'pg';
@@ -84,45 +83,9 @@ export function createSosRouter(pool: Pool): Router {
       });
       const dbMs = Date.now() - t0;
 
-      // Fire distress SMS to all emergency contacts + escalation number immediately (non-blocking)
-      const lat = event.receiverLat ?? 0;
-      const lon = event.receiverLon ?? 0;
+      // SMS is now handled entirely on-device (SmsFallbackService) after BLE
+      // advertising stops.  No Twilio calls from the backend.
       const contactsToNotify = profile?.contacts.filter((c) => c.phone) ?? [];
-
-      void Promise.allSettled([
-        // Emergency contacts
-        ...contactsToNotify.map((c) =>
-          sendContactSms({
-            to: c.phone!,
-            victimName: profile!.user.name,
-            sosId: event.id,
-            latitude: lat,
-            longitude: lon,
-            timestamp: event.timestamp,
-            message: `[${extractSosType(data.flags)}] ${event.message ?? ''}`.trim(),
-          }),
-        ),
-        // Escalation operator — immediate alert
-        sendEscalationSms({
-          sosId: event.id,
-          latitude: lat,
-          longitude: lon,
-          timestamp: event.timestamp,
-          message: `[${extractSosType(data.flags)}] ${event.message ?? ''}`.trim(),
-          victimName: profile?.user.name ?? null,
-          contactsNotified: contactsToNotify.length,
-          isReminder: false,
-        }),
-      ]).then((results) => {
-        const sent = results.filter((r) => r.status === 'fulfilled' && r.value).length;
-        logger.info('SMS dispatched', {
-          reqId,
-          id: event.id,
-          total: results.length,
-          sent,
-          contacts: contactsToNotify.length,
-        });
-      });
 
       // Start 30s timer — logs if SOS remains unacknowledged (no extra SMS)
       if (event.status === 'active' || event.status === 'relayed') {
