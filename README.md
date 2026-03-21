@@ -1,4 +1,4 @@
-# AfterMath — Civic Emergency Access Layer (CEAL)
+# Civic Emergency Access Layer (CEAL)
 
 Offline-first civic emergency response platform with:
 - a BLE mesh-enabled Flutter mobile app,
