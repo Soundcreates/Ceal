@@ -5,7 +5,7 @@
     "rewrites": [
         {
             "source": "/v1/(.*)",
-            "destination": "https://aftermath-omshantyom-civic.onrender.com/v1/$1"
+            "destination": "https://ceal.onrender.com/v1/$1"
         },
         {
             "source": "/(.*)",

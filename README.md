@@ -114,6 +114,10 @@ Override with:
 
 ```bash
 VITE_API_BASE_URL=http://localhost:3000/v1 npm run dev
+
+Production URLs:
+- Backend: `https://ceal.onrender.com`
+- Admin dashboard: `https://ceal-peach.vercel.app`
 ```
 
 ### 3) Mobile App (Flutter)
