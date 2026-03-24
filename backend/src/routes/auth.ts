@@ -4,14 +4,14 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { signToken } from '../middleware/auth.js';
+import { requireServerSecret, signToken } from '../middleware/auth.js';
 import { logger } from '../logger.js';
 
 const rid = (req: Request): string =>
   (req as Request & { reqId?: string }).reqId ?? 'no-rid';
 
 const tokenRequestSchema = z.object({
-  sub: z.string().min(1),
+  sub: z.string().trim().min(1),
   role: z.enum(['civilian', 'responder', 'admin']).default('responder'),
 });
 
@@ -20,9 +20,10 @@ export function createAuthRouter(): Router {
 
   /**
    * POST /auth/token — Issue a JWT (for testing / admin use).
-   * In production, this should be behind proper authentication.
+   * This endpoint is intentionally gated behind X-Server-Secret and should
+   * only be used for trusted internal/admin flows.
    */
-  router.post('/token', (req: Request, res: Response) => {
+  router.post('/token', requireServerSecret, (req: Request, res: Response) => {
     const reqId = rid(req);
     const parsed = tokenRequestSchema.safeParse(req.body);
     if (!parsed.success) {

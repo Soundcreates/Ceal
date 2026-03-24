@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
+  Navigate,
+  Outlet,
   createBrowserRouter,
   RouterProvider,
 } from 'react-router-dom';
@@ -17,6 +19,12 @@ import DisasterReportDetail from './pages/DisasterReportDetail';
 import Users from './pages/Users';
 import UserDetail from './pages/UserDetail';
 import Settings from './pages/Settings';
+import Login from './pages/Login';
+import { getStoredToken } from './auth';
+
+function ProtectedAdmin() {
+  return getStoredToken() ? <Outlet /> : <Navigate to="/login" replace />;
+}
 
 const router = createBrowserRouter([
   {
@@ -24,19 +32,26 @@ const router = createBrowserRouter([
     element: <Landing />,
   },
   {
-    path: '/admin',
-    element: <Layout />,
-    children: [
-      { index: true, element: <Dashboard /> },
-      { path: 'dashboard', element: <Dashboard /> },
-      { path: 'events', element: <Events /> },
-      { path: 'events/:id', element: <EventDetail /> },
-      { path: 'disaster-reports', element: <DisasterReports /> },
-      { path: 'disaster-reports/:id', element: <DisasterReportDetail /> },
-      { path: 'users', element: <Users /> },
-      { path: 'users/:id', element: <UserDetail /> },
-      { path: 'settings', element: <Settings /> },
-    ],
+    path: '/login',
+    element: <Login />,
+  },
+  {
+    element: <ProtectedAdmin />,
+    children: [{
+      path: '/admin',
+      element: <Layout />,
+      children: [
+        { index: true, element: <Dashboard /> },
+        { path: 'dashboard', element: <Dashboard /> },
+        { path: 'events', element: <Events /> },
+        { path: 'events/:id', element: <EventDetail /> },
+        { path: 'disaster-reports', element: <DisasterReports /> },
+        { path: 'disaster-reports/:id', element: <DisasterReportDetail /> },
+        { path: 'users', element: <Users /> },
+        { path: 'users/:id', element: <UserDetail /> },
+        { path: 'settings', element: <Settings /> },
+      ],
+    }],
   },
 ]);
 

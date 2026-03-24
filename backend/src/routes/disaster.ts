@@ -14,7 +14,7 @@ import crypto from 'node:crypto';
 import multer from 'multer';
 import type { Pool } from 'pg';
 
-import { requireAuth, optionalAuth } from '../middleware/auth.js';
+import { requireAuth, optionalAuth, requireRole } from '../middleware/auth.js';
 import { DisasterReportRepository } from '../db/disaster-report-repository.js';
 import { verifyDisasterImage } from '../services/gemini-verify.js';
 import {
@@ -345,18 +345,12 @@ export function createDisasterRouter(pool: Pool): Router {
   // -----------------------------------------------------------------------
   // PATCH /disaster/:id/status
   // -----------------------------------------------------------------------
-  router.patch('/:id/status', requireAuth, async (req: Request, res: Response) => {
+  router.patch('/:id/status', requireAuth, requireRole('admin'), async (req: Request, res: Response) => {
     const reqId = rid(req);
     try {
       const id = pickFirstString(req.params.id);
       if (!id || !UUID_RE.test(id)) {
         res.status(404).json({ error: 'Report not found' });
-        return;
-      }
-
-      // Only admins can update authority status
-      if (req.user!.role !== 'admin') {
-        res.status(403).json({ error: 'Admin access required' });
         return;
       }
 

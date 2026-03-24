@@ -8,7 +8,7 @@ import { env } from './config.js';
 import { logger } from './logger.js';
 import { pool, closePool } from './db/pool.js';
 import { createApp } from './app.js';
-import { cancelAllTimers } from './services/escalation.js';
+import { cancelAllTimers, recoverPendingEscalations } from './services/escalation.js';
 
 const app = createApp(pool);
 
@@ -19,8 +19,11 @@ const server = app.listen(env.PORT, () => {
   // (signup, SOS ingest, etc.) does not incur a 10 s cold-start delay.
   pool.query('SELECT 1').then(() => {
     logger.info('DB pool warmed up');
+    return recoverPendingEscalations(pool);
+  }).then(() => {
+    logger.info('Escalation recovery complete');
   }).catch((err) => {
-    logger.warn('DB warmup failed (will retry on first request)', { message: (err as Error).message });
+    logger.warn('Startup recovery failed (will retry on first request)', { message: (err as Error).message });
   });
 });
 
@@ -47,5 +50,12 @@ async function shutdown(signal: string): Promise<void> {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled rejection', { reason });
+});
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', { message: error.message, stack: error.stack });
+  void shutdown('uncaughtException');
+});
 
 export default app;

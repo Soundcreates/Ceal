@@ -1,12 +1,12 @@
-/// Type-safe access to runtime environment variables loaded from `.env`.
+/// Type-safe access to runtime environment variables loaded from `.env.example`.
 ///
-/// Variables are read from the bundled `.env` asset via `flutter_dotenv`.
-/// Every getter has a compiled fallback so the app works even when no `.env`
-/// file is present (e.g. in CI or test environments).
+/// Variables are read from the bundled `.env.example` asset via
+/// `flutter_dotenv`. Every getter has a compiled fallback so the app works
+/// even when no custom environment values are supplied.
 ///
 /// Load order in [main]:
 ///   ```dart
-///   await dotenv.load(fileName: '.env');
+///   await dotenv.load(fileName: '.env.example');
 ///   ```
 library;
 

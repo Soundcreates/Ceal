@@ -12,8 +12,7 @@ import { env } from '../config.js';
 const { Pool } = pg;
 
 const CREATE_SOS_EVENTS = `
-DROP TABLE IF EXISTS sos_events CASCADE;
-CREATE TABLE sos_events (
+CREATE TABLE IF NOT EXISTS sos_events (
   id           TEXT PRIMARY KEY,
   ble_uid      TEXT NOT NULL,
   flags        INTEGER NOT NULL DEFAULT 0,
@@ -139,6 +138,17 @@ CREATE INDEX IF NOT EXISTS idx_aadhaar_qr_scans_created ON aadhaar_qr_scans (cre
 CREATE INDEX IF NOT EXISTS idx_aadhaar_qr_scans_sha     ON aadhaar_qr_scans (image_sha256);
 `;
 
+const CREATE_AADHAAR_QR_NULLIFIERS = `
+CREATE TABLE IF NOT EXISTS aadhaar_qr_nullifiers (
+  nullifier_hash TEXT PRIMARY KEY,
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  method         TEXT NOT NULL DEFAULT 'qr_xml',
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_aadhaar_qr_nullifiers_user
+  ON aadhaar_qr_nullifiers (user_id);
+`;
+
 const CREATE_MANUAL_KYC_SUBMISSIONS = `
 CREATE TABLE IF NOT EXISTS manual_kyc_submissions (
   id            UUID PRIMARY KEY,
@@ -216,6 +226,17 @@ END;
 $$;
 `;
 
+const CREATE_PENDING_ESCALATIONS = `
+CREATE TABLE IF NOT EXISTS pending_escalations (
+  sos_id      TEXT PRIMARY KEY REFERENCES sos_events(id) ON DELETE CASCADE,
+  fire_at     TIMESTAMPTZ NOT NULL,
+  fired       BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pending_escalations_fire_at
+  ON pending_escalations (fired, fire_at);
+`;
+
 async function migrate(): Promise<void> {
   const dbUrl = new URL(env.DATABASE_URL);
   const sslMode = dbUrl.searchParams.get('sslmode')?.toLowerCase();
@@ -258,6 +279,8 @@ async function migrate(): Promise<void> {
     console.log('  ✅ aadhaar_qr_scans table');
     await pool.query(CREATE_AADHAAR_QR_SCANS_INDEXES);
     console.log('  ✅ aadhaar_qr_scans indexes');
+    await pool.query(CREATE_AADHAAR_QR_NULLIFIERS);
+    console.log('  ✅ aadhaar_qr_nullifiers table');
     await pool.query(CREATE_MANUAL_KYC_SUBMISSIONS);
     console.log('  ✅ manual_kyc_submissions table');
     await pool.query(CREATE_MANUAL_KYC_SUBMISSIONS_INDEXES);
@@ -278,6 +301,8 @@ async function migrate(): Promise<void> {
     console.log('  ✅ updated_at trigger');
     await pool.query(CREATE_INDEXES);
     console.log('  ✅ indexes');
+    await pool.query(CREATE_PENDING_ESCALATIONS);
+    console.log('  ✅ pending escalations');
 
     console.log('Migrations complete.');
   } catch (err) {

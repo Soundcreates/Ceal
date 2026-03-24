@@ -10,6 +10,7 @@
  */
 
 import type { Pool as PgPool } from 'pg';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   User,
   SignupPayload,
@@ -17,8 +18,8 @@ import type {
   MedicalProfile,
   ManualKycPayload,
 } from '../models/user.js';
-import { randomUUID } from 'node:crypto';
 import { generateBleUid } from '../services/uid-resolver.js';
+import { env } from '../config.js';
 
 export class UserRepository {
   constructor(private readonly pool: PgPool) {}
@@ -182,6 +183,38 @@ export class UserRepository {
       [userId, aadhaarAgeAbove18, aadhaarGender, aadhaarState],
     );
     return rows.length > 0 ? this.rowToUser(rows[0]) : null;
+  }
+
+  async reserveQrNullifier(
+    userId: string,
+    aadhaarUid: string,
+    method: 'qr_xml' | 'photo',
+  ): Promise<{ ok: true; hash: string } | { ok: false; ownerUserId: string }> {
+    const hash = createHash('sha256')
+      .update(`${aadhaarUid}:${env.SERVER_SECRET}`, 'utf8')
+      .digest('hex');
+
+    const inserted = await this.pool.query<{ nullifier_hash: string }>(
+      `INSERT INTO aadhaar_qr_nullifiers (nullifier_hash, user_id, method)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (nullifier_hash) DO NOTHING
+       RETURNING nullifier_hash`,
+      [hash, userId, method],
+    );
+    if (inserted.rows[0]) {
+      return { ok: true, hash };
+    }
+
+    const existing = await this.pool.query<{ user_id: string }>(
+      'SELECT user_id FROM aadhaar_qr_nullifiers WHERE nullifier_hash = $1',
+      [hash],
+    );
+    const ownerUserId = existing.rows[0]?.user_id;
+    if (ownerUserId === userId) {
+      return { ok: true, hash };
+    }
+
+    return { ok: false, ownerUserId: ownerUserId ?? '' };
   }
 
   /**

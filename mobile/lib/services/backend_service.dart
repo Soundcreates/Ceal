@@ -686,8 +686,10 @@ class BackendService {
     final params = <String, String>{
       'page': page.toString(),
       'limit': limit.toString(),
-      if (category != null) 'category': category,
     };
+    if (category != null) {
+      params['category'] = category;
+    }
     final uri = Uri.parse('$_baseUrl$kApiDisasterFeed').replace(queryParameters: params);
     debugPrint('[BackendService] → GET ${uri.path}?${uri.query}');
     final sw = Stopwatch()..start();

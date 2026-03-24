@@ -16,6 +16,7 @@ import { UserRepository } from '../db/user-repository.js';
 import { DisasterReportRepository } from '../db/disaster-report-repository.js';
 import { extractSosType, SOS_STATUSES } from '../models/sos-event.js';
 import { AUTHORITY_STATUSES, VERIFICATION_STATUSES } from '../models/disaster-report.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { logger } from '../logger.js';
 
 const rid = (req: Request): string =>
@@ -26,6 +27,8 @@ export function createAdminRouter(pool: Pool): Router {
   const sosRepo = new SosRepository(pool);
   const userRepo = new UserRepository(pool);
   const disasterRepo = new DisasterReportRepository(pool);
+
+  router.use(requireAuth, requireRole('admin'));
 
   // -----------------------------------------------------------------------
   // GET /admin/stats

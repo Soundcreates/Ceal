@@ -40,6 +40,13 @@ vi.mock('twilio', () => {
   };
 });
 
+vi.mock('../src/services/escalation.js', () => {
+  return {
+    startEscalationTimer: vi.fn().mockResolvedValue(undefined),
+    cancelEscalationTimer: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 // Now safe to import
 import { createSosRouter } from '../src/routes/sos.js';
 import { createHealthRouter } from '../src/routes/health.js';
@@ -117,6 +124,7 @@ describe('Auth route', () => {
   it('POST /v1/auth/token issues a JWT', async () => {
     const res = await request(app)
       .post('/v1/auth/token')
+      .set('X-Server-Secret', process.env['SERVER_SECRET'] ?? 'server-secret-for-tests-0123456789')
       .send({ sub: 'user-123', role: 'responder' });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('token');
@@ -126,6 +134,7 @@ describe('Auth route', () => {
   it('POST /v1/auth/token rejects missing sub', async () => {
     const res = await request(app)
       .post('/v1/auth/token')
+      .set('X-Server-Secret', process.env['SERVER_SECRET'] ?? 'server-secret-for-tests-0123456789')
       .send({ role: 'responder' });
     expect(res.status).toBe(400);
   });
@@ -355,7 +364,7 @@ describe('Escalation timer', () => {
     expect(res.status).toBe(200);
   });
 
-  it('immediately sends distress SMS to contacts AND escalation operator on ingest', async () => {
+  it('does not send immediate Twilio SMS on ingest', async () => {
     const app = buildApp();
     mockQuery.mockReset();
     mockCreate.mockClear();
@@ -383,15 +392,6 @@ describe('Escalation timer', () => {
 
     const res = await request(app).post('/v1/sos/ingest').send(validSos);
     expect(res.status).toBe(201);
-
-    // Allow the fire-and-forget Promise.allSettled to settle
-    await new Promise((r) => setTimeout(r, 10));
-
-    // All three recipients should have received an immediate SMS
-    const destinations = mockCreate.mock.calls.map((c: any[]) => c[0].to as string);
-    expect(destinations).toContain('+911111111111'); // Mom
-    expect(destinations).toContain('+912222222222'); // Dad
-    expect(destinations).toContain(process.env['TWILIO_ESCALATION_NUMBER'] ?? expect.any(String)); // operator
-    expect(mockCreate).toHaveBeenCalledTimes(3); // 2 contacts + 1 escalation
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 });

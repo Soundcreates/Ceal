@@ -6,7 +6,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/core/nb_components.dart';
-import 'package:aftermath/core/env.dart';
 import 'package:aftermath/providers.dart';
 
 class ManualKycFormScreen extends ConsumerStatefulWidget {

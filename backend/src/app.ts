@@ -39,14 +39,29 @@ function redactBody(obj: unknown, depth = 0): unknown {
 
 export function createApp(pool: Pool): express.Express {
   const app = express();
+  const allowedOrigins = env.CORS_ORIGIN
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
   // ---------------------------------------------------------------------------
   // Global middleware
   // ---------------------------------------------------------------------------
-  app.use(helmet());
+  app.set('trust proxy', 1);
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    referrerPolicy: { policy: 'no-referrer' },
+  }));
   app.use(
     cors({
-      origin: "*",
+      origin(origin, callback) {
+        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error('Origin not allowed by CORS'));
+      },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     }),

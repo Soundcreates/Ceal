@@ -13,6 +13,7 @@ export interface DecodedQrPhoto {
 }
 
 export interface AadhaarQrExtracted {
+  uid: string | null;
   name: string | null;
   gender: string | null;
   state: string | null;
@@ -42,6 +43,7 @@ export async function parseAadhaarQrPayload(raw: string): Promise<AadhaarQrExtra
   const fromSelf = await tryParseWithSelfSdk(raw);
   if (fromSelf) {
     return {
+      uid: normalizeField(fromSelf.uid),
       name: normalizeField(fromSelf.name),
       gender: normalizeField(fromSelf.gender),
       state: normalizeField(fromSelf.state),
@@ -133,6 +135,7 @@ async function tryParseWithSelfSdk(rawPayload: string): Promise<Partial<AadhaarQ
     }
     const obj = result as Record<string, unknown>;
     return {
+      uid: asString(obj.uid),
       name: asString(obj.name),
       gender: asString(obj.gender),
       state: asString(obj.state),
@@ -162,6 +165,7 @@ function parseAadhaarQrXml(raw: string): AadhaarQrExtracted {
   }
 
   return {
+    uid: normalizeField(attrs.get('uid')),
     name: normalizeField(attrs.get('name')),
     gender: normalizeField(attrs.get('gender')),
     state: normalizeField(attrs.get('state')),

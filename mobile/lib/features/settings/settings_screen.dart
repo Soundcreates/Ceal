@@ -133,7 +133,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16)
                       .copyWith(bottom: 12),
                   child: DropdownButtonFormField<SosType>(
-                    value: _accessibilitySosType,
+                    initialValue: _accessibilitySosType,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(AppTheme.nbRadius),

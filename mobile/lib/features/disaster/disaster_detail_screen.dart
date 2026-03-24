@@ -101,7 +101,7 @@ class _DetailBody extends StatelessWidget {
             child: Image.network(
               report.imageUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Center(
+              errorBuilder: (context, error, stackTrace) => Center(
                 child: Icon(Icons.broken_image,
                     size: 64,
                     color: AppTheme.nbInk.withValues(alpha: 0.2)),

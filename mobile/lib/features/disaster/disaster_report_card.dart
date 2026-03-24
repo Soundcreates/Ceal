@@ -52,14 +52,14 @@ class DisasterReportCard extends StatelessWidget {
                 child: Image.network(
                   report.imageUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Center(
+                  errorBuilder: (context, error, stackTrace) => Center(
                     child: Icon(
                       Icons.broken_image,
                       size: 48,
                       color: AppTheme.nbInk.withValues(alpha: 0.2),
                     ),
                   ),
-                  loadingBuilder: (_, child, progress) {
+                  loadingBuilder: (context, child, progress) {
                     if (progress == null) return child;
                     return Center(
                       child: CircularProgressIndicator(

@@ -46,6 +46,11 @@ export interface ContactSmsPayload {
  * Send an escalation SMS with SOS details + Google Maps link.
  */
 export async function sendEscalationSms(payload: SmsPayload): Promise<boolean> {
+  if (!env.TWILIO_FROM_NUMBER || !env.TWILIO_ESCALATION_NUMBER) {
+    logger.warn('Skipping escalation SMS because Twilio numbers are not configured');
+    return false;
+  }
+
   const mapsUrl = `https://maps.google.com/?q=${payload.latitude},${payload.longitude}`;
   const prefix = payload.isReminder ? '[REMINDER] SOS unacknowledged 30s' : '[SOS ALERT]';
   const victim = payload.victimName ?? 'Unknown';
@@ -79,6 +84,11 @@ export async function sendEscalationSms(payload: SmsPayload): Promise<boolean> {
  * Sent in parallel with (not instead of) the operator escalation SMS.
  */
 export async function sendContactSms(payload: ContactSmsPayload): Promise<boolean> {
+  if (!env.TWILIO_FROM_NUMBER) {
+    logger.warn('Skipping contact SMS because TWILIO_FROM_NUMBER is not configured');
+    return false;
+  }
+
   const mapsUrl = `https://maps.google.com/?q=${payload.latitude},${payload.longitude}`;
   const name = payload.victimName ?? 'Someone you know';
   // Keep body under 160 chars (single GSM-7 segment, no emoji) for Twilio trial compatibility.

@@ -13,6 +13,7 @@ import { SosRepository } from '../db/sos-repository.js';
 import { UserRepository } from '../db/user-repository.js';
 import { startEscalationTimer, cancelEscalationTimer } from '../services/escalation.js';
 import { optionalAuth } from '../middleware/auth.js';
+import { sosIngestLimiter } from '../middleware/rate-limit.js';
 import { logger } from '../logger.js';
 import type { Pool } from 'pg';
 
@@ -28,7 +29,7 @@ export function createSosRouter(pool: Pool): Router {
   // -----------------------------------------------------------------------
   // POST /sos/ingest
   // -----------------------------------------------------------------------
-  router.post('/ingest', optionalAuth, async (req: Request, res: Response) => {
+  router.post('/ingest', sosIngestLimiter, optionalAuth, async (req: Request, res: Response) => {
     const reqId = rid(req);
     try {
       logger.debug('SOS ingest received', {
@@ -83,13 +84,9 @@ export function createSosRouter(pool: Pool): Router {
       });
       const dbMs = Date.now() - t0;
 
-      // SMS is now handled entirely on-device (SmsFallbackService) after BLE
-      // advertising stops.  No Twilio calls from the backend.
-      const contactsToNotify = profile?.contacts.filter((c) => c.phone) ?? [];
-
-      // Start 30s timer — logs if SOS remains unacknowledged (no extra SMS)
+      // Start 30s timer — persisted in DB so process restarts do not lose it.
       if (event.status === 'active' || event.status === 'relayed') {
-        startEscalationTimer(event.id, repo);
+        await startEscalationTimer(pool, event.id);
         logger.info('SOS escalation timer started', { reqId, id: event.id });
       }
 
@@ -149,7 +146,7 @@ export function createSosRouter(pool: Pool): Router {
       }
 
       // Cancel escalation timer since it's now acknowledged
-      cancelEscalationTimer(event.id);
+      await cancelEscalationTimer(pool, event.id);
 
       logger.info('SOS acknowledged OK', { reqId, id: event.id, dbMs });
       res.status(200).json(event);

@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { clearStoredToken } from '../auth';
 
 const NAV = [
   { to: '/admin/dashboard',         icon: '◉', label: 'Dashboard' },
@@ -9,6 +10,8 @@ const NAV = [
 ];
 
 export default function Sidebar() {
+  const navigate = useNavigate();
+
   return (
     <aside className="layout__sidebar">
       <div className="sidebar__brand">
@@ -32,7 +35,17 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar__footer">
-        CEAL v1.0 &middot; BLE Mesh SOS
+        <button
+          className="nb-btn nb-btn--ghost nb-btn--sm"
+          type="button"
+          onClick={() => {
+            clearStoredToken();
+            navigate('/login', { replace: true });
+          }}
+        >
+          Logout
+        </button>
+        <div style={{ marginTop: 12 }}>CEAL v1.0 &middot; BLE Mesh SOS</div>
       </div>
     </aside>
   );

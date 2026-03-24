@@ -21,3 +21,4 @@ coverage
 *.so
 *.dylib
 backend/uploads/
+CODEBASE_CONTEXT.md

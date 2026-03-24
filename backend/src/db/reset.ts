@@ -13,6 +13,8 @@ import pg from 'pg';
 const { Pool } = pg;
 
 const TABLES_TO_TRUNCATE = [
+  'pending_escalations',
+  'aadhaar_qr_nullifiers',
   'aadhaar_qr_scans',
   'manual_kyc_submissions',
   'emergency_contacts',

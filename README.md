@@ -106,6 +106,9 @@ npm run dev
 
 Default dashboard URL: `http://localhost:5173`
 
+Dashboard access now requires a JWT in the browser. Open `/login`, paste an
+admin token, and the UI stores it under `ceal_token` in `localStorage`.
+
 Dashboard API base defaults to `http://localhost:3000/v1`.
 Override with:
 
@@ -121,7 +124,7 @@ flutter pub get
 flutter run
 ```
 
-For local backend testing on LAN, update `mobile/.env`:
+For local backend testing on LAN, update `mobile/.env.example`:
 
 ```env
 API_BASE_URL=http://<YOUR_LOCAL_IP>:3000/v1
@@ -132,7 +135,7 @@ Helper script:
 
 ```bash
 cd mobile
-./scripts/set_local_api.sh 3000 .env
+./scripts/set_local_api.sh 3000 .env.example
 ```
 
 ### 4) Python QR Service (Optional)
@@ -164,6 +167,9 @@ All backend routes are under `/v1`:
 - `/users`
 - `/disaster`
 - `/admin`
+
+`POST /v1/auth/token` is gated by the `X-Server-Secret` header and is intended
+for trusted internal/admin tooling only.
 
 For protocol and lifecycle details, see `WHITEPAPER.md`.
 

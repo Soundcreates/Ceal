@@ -14,36 +14,10 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://aftermath:aftermath@postgres:5432/aftermath
       PORT: "3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - aftermath-net
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: aftermath-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: aftermath
-      POSTGRES_PASSWORD: aftermath
-      POSTGRES_DB: aftermath
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aftermath -d aftermath"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    volumes:
-      - pgdata:/var/lib/postgresql/data
     networks:
       - aftermath-net
 
 networks:
   aftermath-net:
     driver: bridge
-
-volumes:
-  pgdata:

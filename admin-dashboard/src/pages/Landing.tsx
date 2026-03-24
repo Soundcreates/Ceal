@@ -204,7 +204,7 @@ export default function Landing() {
             </a>
           ))}
           <Link
-            to="/admin"
+            to="/login"
             className="nb-btn nb-btn--primary nb-btn--sm"
             style={{ textDecoration: 'none', marginLeft: 8 }}
           >

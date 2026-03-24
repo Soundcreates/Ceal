@@ -173,6 +173,10 @@ export function createOnboardingRouter(pool: Pool): Router {
         new Uint8ClampedArray(rgbaBuffer.buffer, rgbaBuffer.byteOffset, rgbaBuffer.byteLength),
       );
       const extracted = await parseAadhaarQrPayload(decoded.rawPayload);
+      if (!extracted.uid) {
+        res.status(422).json({ error: 'Aadhaar QR payload did not contain a UID' });
+        return;
+      }
       const imageSha256 = createHash('sha256').update(rgbaBuffer).digest('hex');
 
       await pool.query(
@@ -196,6 +200,18 @@ export function createOnboardingRouter(pool: Pool): Router {
       if (user.kycStatus === 'rejected') {
         res.status(400).json({
           error: 'KYC was previously rejected. Please contact support.',
+        });
+        return;
+      }
+
+      const reserved = await userRepo.reserveQrNullifier(
+        inputCheck.data.userId,
+        extracted.uid,
+        'photo',
+      );
+      if (!reserved.ok) {
+        res.status(409).json({
+          error: 'This Aadhaar has already been used for KYC by another account',
         });
         return;
       }
@@ -319,6 +335,17 @@ export function createOnboardingRouter(pool: Pool): Router {
       }
 
       const extracted = await parseAadhaarQrPayload(data.rawXml);
+      if (!extracted.uid) {
+        res.status(422).json({ error: 'Aadhaar QR payload did not contain a UID' });
+        return;
+      }
+      const reserved = await userRepo.reserveQrNullifier(data.userId, extracted.uid, 'qr_xml');
+      if (!reserved.ok) {
+        res.status(409).json({
+          error: 'This Aadhaar has already been used for KYC by another account',
+        });
+        return;
+      }
       const ageAbove18 = computeAgeAbove18(extracted.dob, extracted.yob);
 
       const updatedUser = await userRepo.updateKycVerifiedFromQr(
