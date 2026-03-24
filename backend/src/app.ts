@@ -54,7 +54,7 @@ export function createApp(pool: Pool): express.Express {
   }));
   app.use(
     cors({
-      origin(origin, callback) {
+      origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
         if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
           callback(null, true);
           return;
@@ -113,7 +113,7 @@ export function createApp(pool: Pool): express.Express {
   app.use('/v1/admin', createAdminRouter(pool));
 
   // Root health check (convenience)
-  app.get('/', (_req, res) => {
+  app.get('/', (_req: Request, res: Response) => {
     res.json({ service: 'ceal-backend', version: '1.0.0' });
   });
 
