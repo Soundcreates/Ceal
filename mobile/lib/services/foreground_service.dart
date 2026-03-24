@@ -56,7 +56,11 @@ class ForegroundService {
 
   /// Start the foreground service with a persistent notification.
   Future<void> start() async {
-    if (!_initialised) init();
+    if (!_initialised) {
+      // init() calls start() as part of always-on behavior.
+      await init();
+      return;
+    }
 
     final running = await FlutterForegroundTask.isRunningService;
     if (running) {
