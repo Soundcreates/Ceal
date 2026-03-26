@@ -2,12 +2,16 @@
 /// then registers the user with the backend and stores the confirmed BLE UID.
 library;
 
+import 'dart:typed_data';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:aftermath/core/app_theme.dart';
 import 'package:aftermath/core/nb_components.dart';
+import 'package:aftermath/services/backend_service.dart';
 import 'package:aftermath/providers.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
@@ -73,7 +77,20 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       _error = null;
     });
 
-    final bleUidBytes = await ref.read(bleUidProvider.future);
+    late final Uint8List bleUidBytes;
+    try {
+      bleUidBytes = await ref
+          .read(bleUidProvider.future)
+          .timeout(const Duration(seconds: 8));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error =
+            'Failed to access secure storage (BLE UID). Try restarting the app. Details: $e';
+      });
+      return;
+    }
     final bleUidHex =
         bleUidBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
@@ -106,14 +123,26 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     }
 
     final backend = ref.read(backendServiceProvider);
-    final result = await backend.signup(
-      phone: _phoneCtrl.text.trim(),
-      bleUid: bleUidHex,
-      name: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
-      language: _language,
-      emergencyContacts: contacts.isEmpty ? null : contacts,
-      medicalProfile: medical,
-    );
+    late final SignupResult result;
+    try {
+      result = await backend
+          .signup(
+            phone: _phoneCtrl.text.trim(),
+            bleUid: bleUidHex,
+            name: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
+            language: _language,
+            emergencyContacts: contacts.isEmpty ? null : contacts,
+            medicalProfile: medical,
+          )
+          .timeout(const Duration(seconds: 40));
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = 'Signup request timed out. Check your internet and API URL.';
+      });
+      return;
+    }
 
     if (!mounted) return;
 

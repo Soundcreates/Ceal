@@ -284,7 +284,7 @@ class BackendService {
     };
     final body = jsonEncode(payload);
     debugPrint(
-      '[BackendService] → POST ${url.path} | phone=$phone bleUid=$bleUid',
+      '[BackendService] → POST ${url.toString()} | phone=$phone bleUid=$bleUid',
     );
     final sw = Stopwatch()..start();
     try {
