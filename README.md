@@ -128,18 +128,19 @@ flutter pub get
 flutter run
 ```
 
-For local backend testing on LAN, update `mobile/.env.example`:
+For local backend testing on LAN, update `mobile/.env`:
 
 ```env
 API_BASE_URL=http://<YOUR_LOCAL_IP>:3000/v1
 BLE_ENCRYPTION_SECRET=<same-as-backend>
+PYTHON_QR_BASE_URL=https://ceal-1.onrender.com
 ```
 
 Helper script:
 
 ```bash
 cd mobile
-./scripts/set_local_api.sh 3000 .env.example
+./scripts/set_local_api.sh 3000 .env
 ```
 
 ### 4) Python QR Service (Optional)
@@ -154,8 +155,19 @@ uvicorn app.app:app --host 0.0.0.0 --port 8001
 
 Default service health: `http://localhost:8001/health`
 
+Run via Docker Compose:
+
+```bash
+docker compose up --build python-qr
+```
+
+`python-qr` reads its configuration from `python/.env` (via `env_file` in `docker-compose.yml`).
+
 Important env vars:
-- `TS_BACKEND_URL` (default: `http://backend:3000/v1/onboarding/ingest-aadhaar-photo`)
+- `TS_BACKEND_URL` (full override, e.g. `https://ceal.onrender.com/v1/onboarding/verify-aadhaar-qr`)
+- `TS_BACKEND_BASE_URL` (default: `http://backend:3000`)
+- `TS_BACKEND_PATH` (default: `/v1/onboarding/verify-aadhaar-qr`)
+- `TS_BACKEND_AUTH_TOKEN` (optional bearer token)
 - `PYTHON_SERVICE_SECRET`
 - `PYTHON_REQUEST_TIMEOUT_SEC`
 

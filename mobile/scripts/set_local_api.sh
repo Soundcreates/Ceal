@@ -2,7 +2,7 @@
 set -eu
 
 PORT="${1:-3000}"
-ENV_FILE="${2:-.env.example}"
+ENV_FILE="${2:-.env}"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing $ENV_FILE in $(pwd)"

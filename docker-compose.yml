@@ -17,6 +17,17 @@ services:
       PORT: "3000"
     networks:
       - aftermath-net
+  python-qr:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: aftermath-python-qr
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./python/.env
+    networks:
+      - aftermath-net
 
 networks:
   aftermath-net:

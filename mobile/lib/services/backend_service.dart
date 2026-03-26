@@ -156,12 +156,14 @@ class DisasterReportResult {
 }
 
 class BackendService {
-  BackendService({http.Client? client, String? baseUrl})
+  BackendService({http.Client? client, String? baseUrl, String? pythonQrBaseUrl})
     : _client = client ?? http.Client(),
-      _baseUrl = baseUrl ?? kApiBaseUrl;
+      _baseUrl = baseUrl ?? kApiBaseUrl,
+      _pythonQrBaseUrl = pythonQrBaseUrl?.trim() ?? '';
 
   final http.Client _client;
   final String _baseUrl;
+  final String _pythonQrBaseUrl;
 
   /// Auth token set after user authentication.
   String? authToken;
@@ -406,6 +408,54 @@ class BackendService {
     required Uint8List imageBytes,
     String filename = 'aadhaar_qr.jpg',
   }) async {
+    final pythonBase = _pythonQrBaseUrl;
+    if (pythonBase.isNotEmpty) {
+      final uri = Uri.parse('${pythonBase.replaceAll(RegExp(r"/+$"), "")}/v1/qr/scan-aadhaar-photo');
+      try {
+        final req = http.MultipartRequest('POST', uri)
+          ..fields['user_id'] = userId
+          ..files.add(
+            http.MultipartFile.fromBytes(
+              'image',
+              imageBytes,
+              filename: filename,
+            ),
+          );
+
+        final streamed = await req.send().timeout(const Duration(seconds: 30));
+        final response = await http.Response.fromStream(streamed);
+
+        Map<String, dynamic>? body;
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map<String, dynamic>) body = decoded;
+        } catch (_) {}
+
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return AadhaarQrSubmitResult(
+            success: true,
+            statusCode: response.statusCode,
+            decodedXml: body?['decodedXml'] as String?,
+          );
+        }
+
+        return AadhaarQrSubmitResult(
+          success: false,
+          statusCode: response.statusCode,
+          error: (body?['detail']?.toString().trim().isNotEmpty ?? false)
+              ? body!['detail'].toString()
+              : (body?['error']?.toString().trim().isNotEmpty ?? false)
+                  ? body!['error'].toString()
+                  : 'Python photo scan failed (${response.statusCode})',
+        );
+      } catch (e) {
+        return AadhaarQrSubmitResult(
+          success: false,
+          error: 'Python photo upload failed: $e',
+        );
+      }
+    }
+
     final uri = Uri.parse('$_baseUrl/onboarding/scan-aadhaar-photo');
     try {
       final rgba = await _toRgbaPayload(imageBytes);

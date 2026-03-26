@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import os
 from typing import Any
@@ -7,12 +6,25 @@ import cv2
 import numpy as np
 import requests
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from dotenv import load_dotenv
 
 
-TS_BACKEND_URL = os.getenv(
-    "TS_BACKEND_URL",
-    "http://backend:3000/v1/onboarding/ingest-aadhaar-photo",
-)
+load_dotenv()
+
+
+def _join_url(base: str, path: str) -> str:
+    base = base.rstrip("/")
+    path = "/" + path.lstrip("/")
+    return f"{base}{path}"
+
+
+TS_BACKEND_URL = os.getenv("TS_BACKEND_URL")
+if not TS_BACKEND_URL:
+    TS_BACKEND_BASE_URL = os.getenv("TS_BACKEND_BASE_URL", "http://backend:3000")
+    TS_BACKEND_PATH = os.getenv("TS_BACKEND_PATH", "/v1/onboarding/verify-aadhaar-qr")
+    TS_BACKEND_URL = _join_url(TS_BACKEND_BASE_URL, TS_BACKEND_PATH)
+
+TS_BACKEND_AUTH_TOKEN = os.getenv("TS_BACKEND_AUTH_TOKEN", "")
 PYTHON_SERVICE_SECRET = os.getenv("PYTHON_SERVICE_SECRET", "")
 REQUEST_TIMEOUT_SEC = float(os.getenv("PYTHON_REQUEST_TIMEOUT_SEC", "20"))
 
@@ -41,19 +53,13 @@ async def scan_aadhaar_photo(
         )
 
     sha256 = hashlib.sha256(content).hexdigest()
-    image_b64 = base64.b64encode(content).decode("ascii")
 
-    payload = {
-        "userId": user_id,
-        "rawXml": decoded_xml,
-        "imageBase64": image_b64,
-        "imageSha256": sha256,
-        "source": "photo",
-        "processedBy": "python-fastapi-opencv",
-    }
+    payload = {"userId": user_id, "rawXml": decoded_xml}
     headers = {"Content-Type": "application/json"}
     if PYTHON_SERVICE_SECRET:
         headers["x-python-service-secret"] = PYTHON_SERVICE_SECRET
+    if TS_BACKEND_AUTH_TOKEN:
+        headers["Authorization"] = f"Bearer {TS_BACKEND_AUTH_TOKEN}"
 
     try:
         resp = requests.post(
@@ -85,6 +91,7 @@ async def scan_aadhaar_photo(
         "decodedXml": decoded_xml,
         "imageSha256": sha256,
         "forwardedToTs": True,
+        "tsUrl": TS_BACKEND_URL,
         "tsResponse": body,
     }
 

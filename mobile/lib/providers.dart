@@ -51,7 +51,10 @@ final queueServiceProvider = Provider<QueueService>((ref) {
 });
 
 final backendServiceProvider = Provider<BackendService>((ref) {
-  final svc = BackendService(baseUrl: Env.apiBaseUrl);
+  final svc = BackendService(
+    baseUrl: Env.apiBaseUrl,
+    pythonQrBaseUrl: Env.pythonQrBaseUrl,
+  );
   if (Env.apiAuthToken.isNotEmpty) svc.authToken = Env.apiAuthToken;
   ref.onDispose(() => svc.dispose());
   return svc;

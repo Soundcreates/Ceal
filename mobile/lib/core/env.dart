@@ -34,6 +34,11 @@ abstract final class Env {
   static String get onboardingUserId =>
       dotenv.maybeGet('ONBOARDING_USER_ID') ?? '';
 
+  /// Optional base URL for the Python QR service (no trailing slash).
+  /// Reads [PYTHON_QR_BASE_URL] from `.env`; empty string means disabled.
+  static String get pythonQrBaseUrl =>
+      dotenv.maybeGet('PYTHON_QR_BASE_URL') ?? '';
+
   // -------------------------------------------------------------------------
   // BLE Encryption
   // -------------------------------------------------------------------------

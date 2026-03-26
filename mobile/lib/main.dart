@@ -29,7 +29,7 @@ import 'package:aftermath/providers.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await dotenv.load(fileName: '.env.example');
+    await dotenv.load(fileName: '.env');
   } catch (e) {
     // If the asset is missing in a build (common when switching env file names),
     // still boot the app using compiled fallbacks from Env getters.
