@@ -7,9 +7,52 @@ export default function Login() {
   const existingToken = getStoredToken();
   const [token, setToken] = useState(existingToken ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [serverSecret, setServerSecret] = useState('');
+  const [minting, setMinting] = useState(false);
+  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/v1';
 
   if (existingToken) {
     return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  async function handleMintAdminToken() {
+    const trimmed = serverSecret.trim();
+    if (!trimmed) {
+      setError('Server secret is required to generate a token.');
+      return;
+    }
+
+    try {
+      setMinting(true);
+      setError(null);
+      const res = await fetch(`${API_BASE}/auth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Server-Secret': trimmed,
+        },
+        body: JSON.stringify({ sub: 'admin', role: 'admin' }),
+      });
+
+      const body = (await res.json().catch(() => null)) as unknown;
+      if (!res.ok) {
+        const message =
+          body && typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string'
+            ? body.error
+            : `Request failed: ${res.status}`;
+        throw new Error(message);
+      }
+
+      if (!body || typeof body !== 'object' || !('token' in body) || typeof body.token !== 'string') {
+        throw new Error('Backend returned an invalid token response.');
+      }
+
+      setToken(body.token);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setMinting(false);
+    }
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -78,6 +121,40 @@ export default function Login() {
             Back
           </button>
         </div>
+
+        {import.meta.env.DEV ? (
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: 'var(--nb-border)' }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Dev helper</div>
+            <div style={{ opacity: 0.75, marginBottom: 10 }}>
+              Generates an admin JWT by calling <span style={{ fontFamily: 'var(--font-mono)' }}>{`${API_BASE}/auth/token`}</span>{' '}
+              with your backend <span style={{ fontFamily: 'var(--font-mono)' }}>SERVER_SECRET</span>. Don&apos;t use this flow in production.
+            </div>
+            <label htmlFor="serverSecret" style={{ display: 'block', fontWeight: 700, marginBottom: 8 }}>
+              SERVER_SECRET
+            </label>
+            <input
+              id="serverSecret"
+              value={serverSecret}
+              onChange={(event) => setServerSecret(event.target.value)}
+              placeholder="Paste backend SERVER_SECRET"
+              style={{
+                width: '100%',
+                padding: 12,
+                border: 'var(--nb-border)',
+                fontFamily: 'var(--font-mono)',
+                marginBottom: 12,
+              }}
+            />
+            <button
+              type="button"
+              className="nb-btn nb-btn--ghost"
+              onClick={handleMintAdminToken}
+              disabled={minting}
+            >
+              {minting ? 'Generating…' : 'Generate Admin JWT'}
+            </button>
+          </div>
+        ) : null}
       </form>
     </div>
   );

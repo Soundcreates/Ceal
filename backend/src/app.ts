@@ -39,10 +39,10 @@ function redactBody(obj: unknown, depth = 0): unknown {
 
 export function createApp(pool: Pool): express.Express {
   const app = express();
-  const allowedOrigins = env.CORS_ORIGIN
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const allowedOrigins = [
+    ...env.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
+    'http://localhost:5173',
+  ].filter(Boolean);
 
   // ---------------------------------------------------------------------------
   // Global middleware
